@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(zic_proj1)
+project(cs4752-proj2)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -48,14 +48,11 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 add_message_files(
   FILES
-  State.msg
 )
 
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
-  MoveRobot.srv
-  GetState.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -68,8 +65,6 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs
-  geometry_msgs
 )
 
 ###################################
