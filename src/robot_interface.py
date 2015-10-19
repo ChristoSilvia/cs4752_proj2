@@ -6,6 +6,9 @@ from scipy.spatial import KDTree
 
 import rospy
 from cs4752_proj2.srv import *
+import baxter_interface
+from baxter_pykdl import baxter_kinematics
+
 
 
 # FIXED PARAMETERS
@@ -24,6 +27,7 @@ n_dof = 7
 # VARIABLE PARAMETERS
 kdtree_leafsize = 10
 n_points = 100000
+limb = 'left'
 ############
 
 global kdtree
@@ -46,6 +50,8 @@ def nearest_neighbor_response(req):
     distance, nearest_point_index = kdtree.query(np.array(req.point))
     return NearestNeighborResponse(kdtree.data[nearest_point_index,:])
 
+
+
 def robot_interface():
     global kdtree
     rospy.init_node('robot_interface')
@@ -64,6 +70,9 @@ def robot_interface():
     loginfo("Beginning to initialize Nearest Neighbor Service")
     nearest = rospy.Service('nearest', NearestNeighbor, nearest_neighbor_response)
     loginfo("Initialized Nearest Neighbor Service")
+
+    left = baxter_interface.Limb('left')
+    left_kin = baxter_kinematics('left')
 
     rospy.spin()
 
