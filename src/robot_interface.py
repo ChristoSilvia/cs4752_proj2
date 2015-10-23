@@ -51,15 +51,93 @@ def nearest_neighbor_response(req):
     distance, nearest_point_index = kdtree.query(np.array(req.point))
     return NearestNeighborResponse(kdtree.data[nearest_point_index,:])
 
+def null(A):
+    eps = 1e-4
+    u, s, vh = np.linalg.svd(A, full_matrices=1, compute_uv = 1)
+    null_space = np.compress(s < eps, vh, axis=0)
+    return null_space.T
+
 def get_joint_velocities(workspace_velocity):
     global left_kin
     jacobian_pinv = left_kin.jacobian_pseudo_inverse()
+    loginfo(null(jacobian_pinv))
     return np.dot(jacobian_pinv, workspace_velocity)
 
 def moveto(final_position, speed):
     global left
     loginfo("Recieved Move Order")
     dt = 0.05
+    dx = 0.0001
+    velocities = {}
+    current_position = np.array(left.endpoint_pose()['position'])
+    left.set_command_timeout(3*dt)
+    
+    while np.linalg.norm(current_position - final_position) < dx:
+        t_start = rospy.get_time()
+        loginfo("Starting new movement loop")
+        total_distance = np.linalg.norm(final_position - current_position)
+    	velocity = speed * (final_position - current_position) / total_distance
+        velocity_and_angular_momentum = np.zeros((6,1))
+        velocity_and_angular_momentum[0:3,0] = velocity
+        joint_velocities = get_joint_velocities(velocity_and_angular_momentum)
+        for i, name in enumerate(joint_names):
+            velocities[name] = joint_velocities[i,0]
+        left.set_joint_velocities(velocities)
+        rospy.sleep(dt - (rospy.get_time() - t_start))
+    left.exit_control_mode()
+
+def moveto_proportional(final_position, speed):
+    global left
+#    loginfo("Recieved Move Order")
+    dt = 0.005
+    kp = 0.004*speed
+    velocities = {}
+    initial_position = np.array(left.endpoint_pose()['position'])
+#    loginfo("Current Position: {0}".format(initial_position))
+    total_distance = np.linalg.norm(initial_position - final_position)
+#    loginfo("Distance to Target: {0}".format(total_distance))
+    total_time = total_distance / speed
+#    loginfo("Expected Time at Desired Speed: {0}".format(total_time))
+    velocity = speed * (final_position - initial_position) / total_distance
+#    loginfo("Expected End Effector Velocity")
+    left.set_command_timeout(3*dt)
+
+    for t in np.arange(0, total_time, dt):
+        t_start = rospy.get_time()
+        # Compute difference between where we should be and
+	#   where we are
+	current_position = np.array(left.endpoint_pose()['position'])
+        desired_position = initial_position + (t/total_time)*(final_position - initial_position)
+        current_error = current_position - desired_position
+#        loginfo("Current position: {0}".format(current_position))
+#        loginfo("Desired position: {0}".format(desired_position))
+#        loginfo("Current error: {0}".format(current_error))
+
+        # Subtract kp times from the current velocity.
+        velocity -= kp * current_error
+  
+        # prepare velocity and angular momentum vector
+        velocity_and_angular_momentum = np.zeros((6,1))
+        velocity_and_angular_momentum[0:3,0] = velocity
+ 
+        # solve pseudoinverse
+        joint_velocities = get_joint_velocities(velocity_and_angular_momentum)
+
+        # assemble joint velocities dict and execute command
+        for i, name in enumerate(joint_names):
+            velocities[name] = joint_velocities[i,0]
+        left.set_joint_velocities(velocities)
+
+        # wait until next timestep
+        extra_time =dt - (rospy.get_time() - t_start)
+#        loginfo("{0} sec left over".format(extra_time))
+        rospy.sleep(extra_time)
+    left.exit_control_mode()
+
+def moveto_blind(final_position, speed):
+    global left
+    loginfo("Recieved Move Order")
+    dt = 0.005
     velocities = {}
     current_position = np.array(left.endpoint_pose()['position'])
     loginfo("Current Position: {0}".format(current_position))
@@ -78,7 +156,9 @@ def moveto(final_position, speed):
         for i, name in enumerate(joint_names):
             velocities[name] = joint_velocities[i,0]
         left.set_joint_velocities(velocities)
-        rospy.sleep(dt - (rospy.get_time() - t_start))
+        extra_time =dt - (rospy.get_time() - t_start)
+        loginfo("{0} sec left over".format(extra_time))
+        rospy.sleep(extra_time)
 
 def robot_interface():
     global kdtree
@@ -105,31 +185,19 @@ def robot_interface():
 
     left = baxter_interface.Limb('left')
     left_kin = baxter_kinematics('left')
-#    velocities = {}
-#    zero_velocity = {}
-#    for joint_name in joint_names:
-#        zero_velocity[joint_name] = 0.0
-#    loginfo("Starting to move arm")
-#    left.set_command_timeout(0.5)
-##    for i in xrange(0,200):
-##        c_space_velocities = get_joint_velocities(np.array([[0],[0],[0.01],[0],[0],[0]]))
-##        for j, joint_name in enumerate(joint_names):
-##            velocities[joint_name] = c_space_velocities[j,0]
-##        left.set_joint_velocities(velocities)
-##        rospy.sleep(0.1)
-#    for i in xrange(0,200):
-#        c_space_velocities = get_joint_velocities(np.array([[0],[0],[0.0],[0.1],[0.0],[0]]))
-#        for j, joint_name in enumerate(joint_names):
-#            velocities[joint_name] = c_space_velocities[j,0]
-#        left.set_joint_velocities(velocities)
-#        rospy.sleep(0.1)
-#    left.exit_control_mode()
 
-    current_pose = np.array(left.endpoint_pose()['position'])
-    loginfo("Current pose: {0}".format(current_pose))
-    desired_pose = current_pose + np.array([0,0,0.2])
-    loginfo("Desired Post: {0}".format(desired_pose))
-    moveto(desired_pose, 0.05)
+    n_iterations = 10
+    errors = np.empty(n_iterations)
+    initial_pose = np.array(left.endpoint_pose()['position'])
+    loginfo("Beginning Error Evaluation")
+    for i in xrange(0,n_iterations):
+        desired_pose = initial_pose + (0.3*np.random.rand(3) - 0.15)
+        moveto_proportional(desired_pose, 0.05)
+        rospy.sleep(0.1)
+        error = desired_pose - left.endpoint_pose()['position']
+        loginfo("Error: {0}".format(np.linalg.norm(error)))
+        errors[i] = np.linalg.norm(error)
+    loginfo("Mean Error: {0}".format(np.mean(errors)))
 
     rospy.spin()
 
