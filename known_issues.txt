@@ -1,0 +1,3 @@
+If catkin_make fails with some complaint about messages, check
+	if there's an empty directory called 'msg' in the package.
+Lack of this directory causes an error
