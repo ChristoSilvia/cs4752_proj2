@@ -44,18 +44,19 @@ def calibrate_plane() :
     point_pos = []
     global left, plane_norm, plane_origin, plane_rotation
     while point_count < 3 :
-        input("Press Any Key when Arm is on the %d plane point" %point_count)
+        prompt = "Press Any Key when Arm is on the %d plane point" % point_count
+        cmd = raw_input(prompt)
         point_pos.append(np.array(left.endpoint_pose()['position']))
-        print point_pos[point_count]
+        # print point_pos[point_count]
         point_count += 1
 
     vec1 = point_pos[1] - point_pos[0]
     vec2 = point_pos[2] - point_pos[0]
     plane_norm = np.cross(vec1, vec2)
-    plane_origin = numpy.mean(point_pos)
-    print "Finished Calibrating Plane"
-    print plane_norm
-    print plane_origin
+    plane_origin = np.average(point_pos, axis=0)
+    # print "Finished Calibrating Plane"
+    # print plane_norm
+    # print plane_origin
 
     #need transform to make norm the z vector
     #def rotation_matrix(angle, direction, point=None):
@@ -66,9 +67,25 @@ def calibrate_plane() :
     y_plane = y_plane/np.linalg.norm(y_plane)
     z_plane = plane_norm/np.linalg.norm(plane_norm)
     plane_rotation = np.array([x_plane, y_plane, z_plane])
-    print plane_rotation
+    # print plane_rotation
 
-#def BaseToPlane() :
+def PlaneToBase(plane_x,plane_y) :
+    global left, plane_norm, plane_origin, plane_rotation
+
+    translate = [plane_origin[0],plane_origin[1],plane_origin[2]]
+    T = numpy.identity(4)
+    T[:3, 3] = translate[:3]
+
+    R = np.append(plane_rotation,[[0,0,0]],axis=0)
+    R = np.append(R,[[0],[0],[0],[1]],axis=1)
+    # print R
+
+    M = np.dot(T, R)
+
+    plane_coords = np.array([plane_x,plane_y,0,1])
+    base_coords = np.dot(M, plane_coords.T)
+    print "base_coords: {0}".format(base_coords)
+    # print base_coords
 
 
 def loginfo(infostring):
@@ -224,19 +241,26 @@ def robot_interface():
     left_kin = baxter_kinematics('left')
 
     calibrate_plane()
+    global plane_rotation
+    print plane_rotation
 
-    n_iterations = 10
-    errors = np.empty(n_iterations)
-    initial_pose = np.array(left.endpoint_pose()['position'])
-    loginfo("Beginning Error Evaluation")
-    for i in xrange(0,n_iterations):
-        desired_pose = initial_pose + (0.3*np.random.rand(3) - 0.15)
-        moveto_proportional(desired_pose, 0.05)
-        rospy.sleep(0.1)
-        error = desired_pose - left.endpoint_pose()['position']
-        loginfo("Error: {0}".format(np.linalg.norm(error)))
-        errors[i] = np.linalg.norm(error)
-    loginfo("Mean Error: {0}".format(np.mean(errors)))
+    print "################# PlaneToBase(0,0): #################"
+    print PlaneToBase(0,0)
+    print "################# PlaneToBase(10,10): #################"
+    print PlaneToBase(10,10)
+
+    # n_iterations = 10
+    # errors = np.empty(n_iterations)
+    # initial_pose = np.array(left.endpoint_pose()['position'])
+    # loginfo("Beginning Error Evaluation")
+    # for i in xrange(0,n_iterations):
+    #     desired_pose = initial_pose + (0.3*np.random.rand(3) - 0.15)
+    #     moveto_proportional(desired_pose, 0.05)
+    #     rospy.sleep(0.1)
+    #     error = desired_pose - left.endpoint_pose()['position']
+    #     loginfo("Error: {0}".format(np.linalg.norm(error)))
+    #     errors[i] = np.linalg.norm(error)
+    # loginfo("Mean Error: {0}".format(np.mean(errors)))
 
     rospy.spin()
 
