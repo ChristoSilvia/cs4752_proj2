@@ -9,6 +9,7 @@ from cs4752_proj2.srv import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
+from tf.transformations import *
 
 
 
@@ -23,6 +24,11 @@ joint_limits = np.array([[-2.461, 0.890],
                          [-1.571, 2.094],
                          [-3.059, 3.059]])
 n_dof = 7
+
+plane_norm = np.array([0,0,0])
+plane_origin = np.array([0,0,0])
+plane_rotation = np.empty([3,3])
+
 ############
 
 # VARIABLE PARAMETERS
@@ -32,6 +38,37 @@ limb = 'left'
 ############
 
 global kdtree
+
+def calibrate_plane() :
+    point_count = 0
+    point_pos = []
+    global left, plane_norm, plane_origin, plane_rotation
+    while point_count < 3 :
+        input("Press Any Key when Arm is on the %d plane point" %point_count)
+        point_pos.append(np.array(left.endpoint_pose()['position']))
+        print point_pos[point_count]
+        point_count += 1
+
+    vec1 = point_pos[1] - point_pos[0]
+    vec2 = point_pos[2] - point_pos[0]
+    plane_norm = np.cross(vec1, vec2)
+    plane_origin = numpy.mean(point_pos)
+    print "Finished Calibrating Plane"
+    print plane_norm
+    print plane_origin
+
+    #need transform to make norm the z vector
+    #def rotation_matrix(angle, direction, point=None):
+    #Return matrix to rotate about axis defined by point and direction.
+
+    x_plane = vec1/np.linalg.norm(vec1)
+    y_plane = np.cross(vec1, plane_norm)
+    y_plane = y_plane/np.linalg.norm(y_plane)
+    z_plane = plane_norm/np.linalg.norm(plane_norm)
+    plane_rotation = np.array([x_plane, y_plane, z_plane])
+    print plane_rotation
+
+#def BaseToPlane() :
 
 
 def loginfo(infostring):
@@ -185,6 +222,8 @@ def robot_interface():
 
     left = baxter_interface.Limb('left')
     left_kin = baxter_kinematics('left')
+
+    calibrate_plane()
 
     n_iterations = 10
     errors = np.empty(n_iterations)
