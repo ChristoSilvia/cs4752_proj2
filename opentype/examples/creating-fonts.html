@@ -134,6 +134,20 @@
     var buffer = font.toBuffer();
     var font2 = opentype.parse(buffer);
 
+    // var path = font2.getPath('A', 0, 0, 72);
+
+    var text = "A";
+    var glyphString = font2.stringToGlyphs(text);
+
+    for (var i = 0; i < glyphString.length; i++) {
+        var glyph = glyphString[i];
+        var path = glyph.getPath(0,0,100);
+    }
+
+    console.log("#################################");
+    console.log(path);
+    console.log("#################################");
+
     document.getElementById('fontFamilyName').innerHTML = font2.names.fontFamily.en;
 
     for (var i = 0; i < font2.glyphs.length; i++) {
@@ -142,6 +156,9 @@
         var x = 50;
         var y = 120;
         var fontSize = 72;
+        // console.log("#################################");
+        // console.log(glyph.);
+        // console.log("#################################");
         glyph.draw(ctx, x, y, fontSize);
         glyph.drawPoints(ctx, x, y, fontSize);
         glyph.drawMetrics(ctx, x, y, fontSize);

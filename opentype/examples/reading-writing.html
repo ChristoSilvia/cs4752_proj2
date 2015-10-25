@@ -2,85 +2,99 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OpenType writing</title>
+    <title>OpenType Bezier Curve Typewriter</title>
     <script type="text/javascript" src="../dist/opentype.js"></script>
-    <style>
-        body {
-            font: 13px Helvetica, arial, freesans, sans-serif;
-            line-height: 1.4;
-            color: #333;
-            margin: 0 0 50px 0;
-            padding: 0;
-        }
-        .container {
-            width: 940px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        #glyphs {
-            clear: both;
-        }
-        .wrapper {
-            float: left;
-            margin: 5px;
-            border: 1px solid #ccc;
-        }
-        .wrapper span {
-            text-align: center;
-            background: #ddd;
-            display: block;
-        }
-    </style>
+    <script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+    <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+    <script type="text/javascript" type="text/javascript"></script>
+    <style></style>
 </head>
 <body>
 <div class="container">
-    <h1 id="fontFamilyName"></h1>
-    <p>This font is generated dynamically in the browser.</p>
-    <button onclick="inFont.download()">Download Font</button>
-
-    <div id="glyphs"></div>
 </div>
 
 <script>
 
     var inFont, outFont;
 
-    // Create a canvas and adds it to the document.
-    // Returns the 2d drawing context.
-    function createGlyphCanvas(glyph, size) {
-        var canvasId, html, glyphsDiv, wrap, canvas, ctx;
-        canvasId = 'c' + glyph.index;
-        html = '<div class="wrapper" style="width:' + size + 'px"><canvas id="' + canvasId + '" width="' + size + '" height="' + size + '"></canvas><span>' + glyph.index + '</span><span>' + glyph.name + '</span><span>U ' + glyph.unicode + '</span></div>';
-        glyphsDiv = document.getElementById('glyphs');
-        wrap = document.createElement('div');
-        wrap.innerHTML = html;
-        glyphsDiv.appendChild(wrap);
-        canvas = document.getElementById(canvasId);
-        ctx = canvas.getContext('2d');
-        return ctx;
-    }
-
-    opentype.load('../fonts/FiraSansOT-Medium.otf', function (err, font) {
-        if (err) {
-            console.log(err);
-        }
-        inFont = font;
-        var buffer = inFont.toBuffer();
-        outFont = opentype.parse(buffer);
-        document.getElementById('fontFamilyName').innerHTML = outFont.names.fontFamily.en;
-
-        for (var i = 0; i < outFont.glyphs.length; i++) {
-            var glyph = outFont.glyphs.get(i);
-            var ctx = createGlyphCanvas(glyph, 150);
-            var x = 50;
-            var y = 120;
-            var fontSize = 72;
-            glyph.draw(ctx, x, y, fontSize);
-            glyph.drawPoints(ctx, x, y, fontSize);
-            glyph.drawMetrics(ctx, x, y, fontSize);
-        }
+    var ros = new ROSLIB.Ros({
+        url : 'ws://localhost:9090'
     });
 
+    ros.on('connection', function() {
+        console.log('Connected to websocket server.');
+    });
+
+    ros.on('error', function(error) {
+        console.log('Error connecting to websocket server: ', error);
+    });
+
+    ros.on('close', function() {
+        console.log('Connection to websocket server closed.');
+    });
+
+    // Publishing a Topic
+    // ------------------
+
+    var cmd_path_pub = new ROSLIB.Topic({
+        ros : ros,
+        name : '/cmd_path',
+        messageType : 'cs4752_proj2/Path'
+    });
+
+    function createPathMsg(cmd) {
+        cmd.y *= -1;
+        if (cmd.type == "C") {
+            cmd.y1 *= -1;
+            cmd.y2 *= -1;
+        }
+
+       return new ROSLIB.Message({
+            type : cmd.type,
+            x : cmd.x,
+            x1 : cmd.x1,
+            x2 : cmd.x2,
+            y : cmd.y,
+            y1 : cmd.y1,
+            y2 : cmd.y2
+        });
+    }
+
+    function resetPlot() {
+        var resetMsg = new ROSLIB.Message({
+            type : "R"
+        });
+        cmd_path_pub.publish(resetMsg);
+    }
+
+    function stringToPathMsg(font,text,fontSize) {
+        opentype.load('../fonts/'+font, function(err, font) {
+            if (err) {
+                alert('Could not load font: ' + err);
+            } else {
+                // Use your font here.
+                inFont = font;
+                var buffer = inFont.toBuffer();
+                outFont = opentype.parse(buffer);
+
+                console.log("####################################");
+
+                var paths = outFont.getPath(text, 0, 0, fontSize);
+                console.log(paths);
+
+                for (var p = 0; p < paths.commands.length; p++) {
+                    var cmd = paths.commands[p];
+                    var cmdMsg = createPathMsg(cmd);
+                    cmd_path_pub.publish(cmdMsg);
+                }
+
+                console.log("####################################");
+            }
+        });
+    }
+
+    resetPlot();
+    stringToPathMsg('Roboto-Black.ttf', "qwerty", 72);
 
 </script>
 </body>

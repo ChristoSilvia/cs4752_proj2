@@ -11,3 +11,9 @@ rosrun baxter_examples joint_position_keyboard.py
 rosrun baxter_interface joint_trajectory_action_server.py
 
 rosrun baxter_tools tuck_arms.py -u
+
+
+cd ~/ros_ws/src/cs4752_proj2/opentype/
+python -m SimpleHTTPServer
+
+http://localhost:8000/typewriter.html
