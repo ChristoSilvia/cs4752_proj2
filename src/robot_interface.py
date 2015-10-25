@@ -3,6 +3,7 @@
 
 import numpy as np
 from scipy.spatial import KDTree
+from scipy.interpolate import PiecewisePolynomial
 
 import rospy
 from cs4752_proj2.srv import *
@@ -207,6 +208,30 @@ def moveto_blind(final_position, speed):
         extra_time =dt - (rospy.get_time() - t_start)
         loginfo("{0} sec left over".format(extra_time))
         rospy.sleep(extra_time)
+
+def move_position_trajectory_blind(trajectory, total_time):
+    """Trajectory is a three-row n-column array of
+	workspace positions"""
+    global left
+    full_trajectory = np.empty(length(trajectory)+1)
+    full_trajectory[0] = left.endpoint_pose()['position']
+    full_trajectory[1:] = trajectory
+    space_differences = np.linalg.norm(full_trajectory[1:] - full_trajectory[:-1], axis=0)
+    trajectory_times = total_time * (space_differences / np.sum(space_differences))
+    dt = 0.05
+    spline_order = 3
+    T = np.arange(0, total_time, dt)
+    n = length(T)
+    interpolator = PiecewisePolynomial(trajectory_times, full_trajectory, order=spline_order, direction=1)
+    
+    for i in xrange(0,n):
+        t_start = rospy.get_time()
+        
+        velocity_and_w = np.zeros((6,1))
+        velocity_and_w[0:2] = interpolator.derivative(T[i])
+        
+        
+         
 
 def robot_interface():
     global kdtree
