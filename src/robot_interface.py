@@ -105,12 +105,6 @@ def nearest_neighbor_response(req):
     distance, nearest_point_index = kdtree.query(np.array(req.point))
     return NearestNeighborResponse(kdtree.data[nearest_point_index,:])
 
-def null(A):
-    eps = 1e-4
-    u, s, vh = np.linalg.svd(A, full_matrices=1, compute_uv = 1)
-    null_space = np.compress(s < eps, vh, axis=0)
-    return null_space.T
-
 def get_joint_velocities(workspace_velocity):
     global left_kin
     jacobian_pinv = left_kin.jacobian_pseudo_inverse()
