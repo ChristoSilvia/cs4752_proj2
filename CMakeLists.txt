@@ -57,6 +57,7 @@ add_service_files(
   FILES
   SampleCSpace.srv
   NearestNeighbor.srv
+  JointAction.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -68,7 +69,8 @@ add_service_files(
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
-#  DEPENDENCIES
+  DEPENDENCIES
+  geometry_msgs
 )
 
 ###################################

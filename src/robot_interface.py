@@ -228,8 +228,7 @@ def move_position_trajectory_blind(trajectory, total_time):
         t_start = rospy.get_time()
         
         velocity_and_w = np.zeros((6,1))
-        velocity_and_w[0:2] = interpolator.derivative(T[i])
-        
+        velocity_and_w[0:2] = interpolator.derivative(T[i]) 
         
          
 
