@@ -21,10 +21,14 @@ def test():
 
     rospy.wait_for_service("/joint_action")
     joint_action_server = rospy.ServiceProxy("/joint_action", JointAction)
+    loginfo("Initialized Joint Action Server Proxy")
     rospy.wait_for_service("/end_effector_position")
     position_server = rospy.ServiceProxy("/end_effector_position", JointAction)
+    loginfo("Initialized position server proxy")
 
+    loginfo("Making position call")
     current_position = position_server()
+    loginfo(current_position)
     joint_action_server([1.0], 
                         [Vector3(current_position.x, current_position.y + 0.1, current_position.z + 0.1)],    
                         [Vector3(0.0,0.0,0.0)])

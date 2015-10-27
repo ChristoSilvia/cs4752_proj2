@@ -104,6 +104,8 @@ class JointActionServer():
         return times_array, x_positions_velocities, y_positions_velocities, z_positions_velocities
 
     def get_position_response(self, args):
+        loginfo("Recieved position request")
+        loginfo("Arguments: {0}".format(args)) 
         position = self.get_position()
         return EndEffectorPositionResponse(Vector3(positon[0],position[1],position[2]))
 
