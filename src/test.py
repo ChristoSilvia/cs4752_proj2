@@ -19,11 +19,14 @@ def test():
     rospy.init_node('test')
     loginfo("Initialized node Controller")
 
-    rospy.wait_for_service("/joint_action_server")
-    joint_action_server = rospy.ServiceProxy("/joint_action_server", JointAction)
+    rospy.wait_for_service("/joint_action")
+    joint_action_server = rospy.ServiceProxy("/joint_action", JointAction)
+    rospy.wait_for_service("/end_effector_position")
+    position_server = rospy.ServiceProxy("/end_effector_position", JointAction)
 
-    joint_action_server([0.0], 
-                        [Vector3(0.0,0.0,0.0)],    
+    current_position = position_server()
+    joint_action_server([1.0], 
+                        [Vector3(current_position.x, current_position.y + 0.1, current_position.z + 0.1)],    
                         [Vector3(0.0,0.0,0.0)])
 
 if __name__ == '__main__':

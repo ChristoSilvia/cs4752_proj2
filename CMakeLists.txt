@@ -59,6 +59,8 @@ add_service_files(
   SampleCSpace.srv
   NearestNeighbor.srv
   JointAction.srv
+  EndEffectorPosition.srv
+  EndEffectorVelocity.srv
 )
 
 ## Generate actions in the 'action' folder
