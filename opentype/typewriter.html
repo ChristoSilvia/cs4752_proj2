@@ -17,7 +17,7 @@
             Text:
             <input type="text" id="input">
             Font Size:
-            <input type="number" id="fontsize" min="10" max="2048" value="72">
+            <input type="number" id="fontsize" min="10" max="2048" value="100">
             <input type="submit">
         </div>
     </form>
@@ -33,10 +33,12 @@
 
     function getInput() {
         text = document.getElementById("input").value;
-        fontsize = document.getElementById("fontsize").value;
+        fontsize = parseInt(document.getElementById("fontsize").value);
         // alert("Sending: "+text);
         resetPlot();
-        stringToPathMsg('Pacifico.ttf', text, fontsize);
+        // font = 'Pacifico.ttf'
+        font = 'Roboto-Black.ttf'
+        stringToPathMsg(font, text, fontsize);
         event.preventDefault();
     }
 
@@ -109,6 +111,19 @@
         cmd_path_pub.publish(resetMsg);
     }
 
+    function sendSize(fontsize) {
+        var sizeMsg = new ROSLIB.Message({
+            type : "S",
+            x : fontsize,
+            x1 : 0.0,
+            x2 : 0.0,
+            y : 0.0,
+            y1 : 0.0,
+            y2 : 0.0
+        });
+        cmd_path_pub.publish(sizeMsg);
+    }
+
     function stringToPathMsg(font,text,fontSize) {
         opentype.load('../fonts/'+font, function(err, font) {
             if (err) {
@@ -123,6 +138,8 @@
 
                 var paths = outFont.getPath(text, 0, 0, fontSize);
                 console.log(paths);
+
+                sendSize(fontSize);
 
                 for (var p = 0; p < paths.commands.length; p++) {
                     var cmd = paths.commands[p];

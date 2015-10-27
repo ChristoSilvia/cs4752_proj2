@@ -50,6 +50,7 @@ add_message_files(
   FILES
   Path.msg
   PathArray.msg
+  Trajectory.msg
 )
 
 ## Generate services in the 'srv' folder
