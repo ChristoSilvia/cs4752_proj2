@@ -22,16 +22,19 @@ class JointActionServer():
         self.ki = 0.01
         self.dt = 0.01
 
-        self.joint_action_srv = rospy.Service('joint_action', JointAction, self.move_trajectory)
+/bin/bash: :wq: command not found
         self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
         self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
 
         rospy.spin()
 
-    def move_trajectory(self, args):
+    def move_end_effector_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
+        self.move_trajectory(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
+
+    def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
  
-        # add in derivatices
+        # add in derivatives
         spline_order = 3
         xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=spline_order, direction=1)
         yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=spline_order, direction=1)
@@ -62,7 +65,8 @@ class JointActionServer():
             velocity_and_w[0] = xinterpolator.derivative(T[i]) + self.kp * vx_corrector + self.ki * vx_integral
             velocity_and_w[1] = yinterpolator.derivative(T[i]) + self.kp * vy_corrector + self.ki * vy_integral
             velocity_and_w[2] = zinterpolator.derivative(T[i]) + self.kp * vz_corrector + self.ki * vz_integral
-                     
+            loginfo("Computation Took: {0}".format(rospy.get_time() - t_start))
+ 
             desired_interval = T[i] - T[i-1]
             end_time = T[i] - T[i-1] + t_start
             rospy.sleep(end_time - rospy.get_time())
