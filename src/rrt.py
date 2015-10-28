@@ -21,7 +21,8 @@ joint_limits = np.array([[-2.461, 0.890],
 
 def sample_cspace():
 	global joint_limits
-    return joint_limits[:,0] + (joint_limits[:,1] - joint_limits[:,0]) * np.random.rand(7)
+	return joint_limits[:,0] + (joint_limits[:,1] - joint_limits[:,0]) * np.random.rand(7)
+
 
 #use the course staff collision checks here
 def Point_Collision_Check(point) :
@@ -30,13 +31,17 @@ def Point_Collision_Check(point) :
 def Line_Collision_Check(p1,p2) :
 	return True
 
+class node :
+	def __init__(self, parent) :
+		self.parent = parent
+
 class Buffered_KD_Tree :
 	def __init__(self, qinit, k) :
 		self.buffer=[]
 		self.buffer_count = 0
 		self.buffer_size = k
 
-		self.kdtree_data = np.array([7,1])
+		self.kdtree_data = np.zeros([7,1])
 		self.kdtree_data[:,0] = qinit
 		self.kdtree = KDTree(self.kdtree_data)
 
@@ -57,11 +62,11 @@ class Buffered_KD_Tree :
 	def Nearest_Neighbor(p) :
 		kd_distance, qnearI = self.kdtree.query(p)
 
-		closest_buffer_dist = 10000000
+		closest_buffer_dist = 100000000
 		closest_point = None
 		for point in self.buffer :
 			this_dist = np.distance(point, p)
-			if this_dist < closest_dist
+			if this_dist < closest_dist :
 				closest_buffer_dist = this_dist
 				closest_point = point
 
@@ -167,4 +172,16 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 	print "Failed to find path in k steps"
 	return []
 
-			
+
+def test() :
+	qi = sample_cspace()
+	qf = sample_cspace()
+
+	path = RRT_Connect_Planner(qi, qf, 10000)
+	print path
+
+	path = simplify_path(path, 1000)
+	print path
+
+if __name__ == '__main__':
+    test()
