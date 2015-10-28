@@ -22,7 +22,6 @@ class JointActionServer():
         self.ki = 0.01
         self.dt = 0.01
 
-/bin/bash: :wq: command not found
         self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
         self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
 
