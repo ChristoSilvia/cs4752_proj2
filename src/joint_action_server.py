@@ -21,15 +21,30 @@ class JointActionServer():
         self.kp = 0.05
         self.ki = 0.01
         self.dt = 0.01
-
+        self.pen_length = 0.08
+        self.deriv_step = 1e-5
+        
+        self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
+        self.move_tool_trajectory = rospy.Service('move_tool_trajectory', JointAction, self.move_tool_trajectory)
         self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
         self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
+        self.tool_position_srv = rospy.Service('tool_position', EndEffectorPosition, self.get_tool_position_response)
 
         rospy.spin()
 
     def move_end_effector_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
         self.move_trajectory(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
+        return JointActionResponse()
+
+    def move_end_effector_trajectory(self, args):
+        times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
+        offset = self.get_tool_offset()
+        self.move_trajectory(times, x_positions_velocities + offset[0], 
+                                    y_positions_velocities + offset[1], 
+                                    z_positions_velocities + offset[2])
+
+        return JointActionResponse()
 
     def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
  
@@ -50,7 +65,7 @@ class JointActionServer():
         for i in xrange(1,n):
             t_start = rospy.get_time()
             self.limb.set_joint_velocities(
-                self.make_velocity_dict(
+                self.make_joint_dict(
                     self.get_joint_velocities(velocity_and_w)))
             
             position = self.get_position()
@@ -72,17 +87,43 @@ class JointActionServer():
    
         self.limb.exit_control_mode()     
 
-        return JointActionResponse()
+    def get_manipulability(self):
+        jacobian = self.limb_kin.jacobian()
+        return np.sqrt(np.dot(jacobian,jacobian.T))
 
     def get_joint_velocities(self, workspace_velocity_and_w):
         jacobian_pinv = self.limb_kin.jacobian_pseudo_inverse()
-        return np.dot(jacobian_pinv, workspace_velocity_and_w)
+        jacobian = self.limb_kin.jacobian()
+        
+        rank, nullspace = null(jacobian)
+        assert(rank == 6, "Jacobian is Singular")
+        Jb = nullspace[:,0]
 
-    def make_velocity_dict(self, joint_velocity_vector):
-        velocity_dict = {}
-        for joint_velocity, joint_name in zip(joint_velocity_vector, self.joint_names):
-            velocity_dict[joint_name] = joint_velocity
-        return velocity_dict
+        J_squared = np.dot(J, J.T)
+        J_squared_inv = np.linalg.inv(J_squared)
+
+        direction_of_manipulatibility = np.empty((7,1))
+        for i in xrange(0,7):
+            angles = self.limb.get_joint_angles()
+            angles[self.joint_names[i]] += self.deriv_step
+            deltaJ = self.limb_kin.jacobian(joint_values=angles)
+            dJ = (deltaJ - jacobian)/self.deriv_step
+            dJSquared = np.dot(J,dJ.T) + np.dot(dJ,J.T)
+            trace = 0.0
+            for j in xrange(0,7):
+                trace += np.dot(J_squared_inv[i,:], dJsquared[:,i])
+            direction_of_manipulability[i] = trace
+            
+        return closest_between_two_lines(Jb, 
+                                         np.dot(jacobian_pinv, workspace_velocity_and_w),
+                                         direction_of_manipulability,
+                                         0)
+
+    def make_joint_dict(self, joint_vector):
+        joint_dict = {}
+        for joint_attribute, joint_name in zip(joint_vector, self.joint_names):
+            joint_dict[joint_name] = joint_attribute
+        return joint_dict
     
     def unpack_joint_action_message(self, args):
         n = len(args.times)
@@ -104,7 +145,7 @@ class JointActionServer():
             y_positions_velocities[i+1,1] = args.velocities[i].y
             z_positions_velocities[i+1,1] = args.velocities[i].z
 
-	    current_velocity = self.get_velocity()
+        current_velocity = self.get_velocity()
         x_positions_velocities[0,1] = current_velocity[0]
         y_positions_velocities[0,1] = current_velocity[1]
         z_positions_velocities[0,1] = current_velocity[2]
@@ -115,6 +156,18 @@ class JointActionServer():
         z_positions_velocities[0,0] = current_position[2]
 
         return times_array, x_positions_velocities, y_positions_velocities, z_positions_velocities
+    
+    def get_tool_offset(self):
+        np.dot(
+            quaternion_to_rotation(self.limb.endpoint_pose()['orientation']),
+            np.array([0,0,self.pen_length]))
+
+    def get_tool_position_response(self, args): 
+        position = self.get_position()
+        offset = self.get_tool_offset()
+        return EndEffectorPositionResponse(Vector3(position[0] + offset[0],
+                                                   position[1] + offset[1],
+                                                   position[2] + offset[2]))
 
     def get_position_response(self, args):
         position = self.get_position()
@@ -132,6 +185,26 @@ class JointActionServer():
 
 def loginfo(message):
     rospy.loginfo("Joint Action Server: {0}".format(message))
+
+def quaternion_to_rotation(q):
+    # from http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
+    return np.array([[1 - 2*q.y**2 - 2*q.z**2, 2*q.x*q.y - 2*q.z*q.w, 2*q.x*q.z + 2*q.y*q.w],
+                     [2*q.x*q.y + 2*q.z*q.w, 1 - 2*q.x**2 - 2*q.z**2, 2*q.y*q.z - 2*q.x*q.w],
+                     [2*q.x*.q.z + 2*q.y*q.w, 2*q.y*q.z + 2*q.x*q.w, 1 - 2*q.x**2 - 2*q.y**2]])
+
+def null(a, rtol=1e-5):
+    # http://stackoverflow.com/questions/19820921/a-simple-matlab-like-way-of-finding-the-null-space-of-a-small-matrix-in-numpy
+    u, s, v = np.linalg.svd(a)
+    rank = (s > rtol*s[0]).sum()
+    return rank, v[rank:].T.copy()
+
+def closest_between_two_lines(a,b,c,d)
+    # if \vec{a} s + \vec{b} and \vec{c} t + \vec{d} are lines, this returns the point in the
+    #   first line which is closest to the second line
+    A = np.array([[np.dot(a,a), -np.dot(c,a)],[-np.dot(c,a), np.dot(c,c)])
+    b = np.array([[- np.dot(a,b) + np.dot(d, a)/2.0],[- np.dot(c,d) + np.dot(c, b)/2]])
+    s_optimal = np.linalg.solve(A,b)[0]
+    return a * s_optimal + b
 
 if __name__ == '__main__':
     try: 

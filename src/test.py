@@ -21,7 +21,8 @@ def test():
     loginfo("Initialized node Controller")
 
     rospy.wait_for_service("/joint_action")
-    joint_action_server = rospy.ServiceProxy("/joint_action", JointAction)
+    joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
+    tool_trajectory = rospy.ServiceProxy("/move_tool_trajectory", JointAction)
     loginfo("Initialized Joint Action Server Proxy")
     rospy.wait_for_service("/end_effector_position")
     position_server = rospy.ServiceProxy("/end_effector_position", EndEffectorPosition)
@@ -32,18 +33,18 @@ def test():
     loginfo("Making position call")
     initial_position = position_server().position
     loginfo(initial_position)
-    joint_action_server([5.0, 10.0],
-                        [Vector3(initial_position.x + 0.1*np.random.rand(),
-                                 initial_position.y + 0.1*np.random.rand(),
-                                 initial_position.z + 0.1*np.random.rand()),
-                         initial_position],
-                        [Vector3(0.0, 0.0, 0.0),
-                         Vector3(0.0, 0.0, 0.0)])
-    loginfo(initial_position)
-    loginfo(position_server().position)
-    loginfo(position_server().position.x - initial_position.x)      
-    loginfo(position_server().position.y - initial_position.y)      
-    loginfo(position_server().position.z - initial_position.z)      
+#    joint_action_server([5.0, 10.0],
+#                        [Vector3(initial_position.x + 0.1*np.random.rand(),
+#                                 initial_position.y + 0.1*np.random.rand(),
+#                                 initial_position.z + 0.1*np.random.rand()),
+#                         initial_position],
+#                        [Vector3(0.0, 0.0, 0.0),
+#                         Vector3(0.0, 0.0, 0.0)])
+#    loginfo(initial_position)
+#    loginfo(position_server().position)
+#    loginfo(position_server().position.x - initial_position.x)      
+#    loginfo(position_server().position.y - initial_position.y)      
+#    loginfo(position_server().position.z - initial_position.z)      
      
 #       joint_action_server([4.0, 8.0], 
 #                           [Vector3(current_position.x+0.05, 
