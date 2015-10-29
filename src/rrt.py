@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial import KDTree
+from scipy.spatial import distance
 
 import rospy
 from cs4752_proj2.srv import *
@@ -21,7 +22,11 @@ joint_limits = np.array([[-2.461, 0.890],
 
 def sample_cspace():
 	global joint_limits
-	return joint_limits[:,0] + (joint_limits[:,1] - joint_limits[:,0]) * np.random.rand(7)
+	temp = joint_limits[:,0] + (joint_limits[:,1] - joint_limits[:,0]) * np.random.rand(7)
+	r = np.zeros(7)
+	for i in xrange(0,7) :
+		r[i] = temp[i]
+	return r
 
 
 #use the course staff collision checks here
@@ -31,27 +36,33 @@ def Point_Collision_Check(point) :
 def Line_Collision_Check(p1,p2) :
 	return True
 
-class node :
-	def __init__(self, parent) :
-		self.parent = parent
 
 class Buffered_KD_Tree :
 	def __init__(self, qinit, k) :
-		self.buffer=[]
-		self.buffer_count = 0
+		self.buffer=[qinit]
+		self.buffer_count = 1
 		self.buffer_size = k
 
-		self.kdtree_data = np.zeros([7,1])
-		self.kdtree_data[:,0] = qinit
-		self.kdtree = KDTree(self.kdtree_data)
+		self.kdtree_data = None
+		self.kdtree = None
+		#self.kdtree_data[:] = qinit
+		#self.kdtree = KDTree(self.kdtree_data)
 
-	def insert(p) :
+	def insert(self, p) :
+		print "INSERTING"
 		if self.buffer_count == self.buffer_size :
-			new_to_tree = np.vstack(self.buffer)
-			self.kdtree_data = numpy.append(self.kdtree_data, new_to_tree)
+			
+			new_to_tree = np.hstack(self.buffer)
+			if self.kdtree_data == None :
+				self.kdtree_data = new_to_tree
+			else :
+				self.kdtree_data = numpy.hstack(self.kdtree_data, new_to_tree)
+
+
 			self.kdtree = KDTree(self.kdtree_data)
 			self.buffer = []
 			self.buffer_count = 0
+
 			#self.buffer_size = self.buffer_size * 2
 
 		self.buffer.append(p)
@@ -59,19 +70,22 @@ class Buffered_KD_Tree :
 
 		
 
-	def Nearest_Neighbor(p) :
-		kd_distance, qnearI = self.kdtree.query(p)
+	def Nearest_Neighbor(self, p) :
+		
 
-		closest_buffer_dist = 100000000
+		closest_dist = 100000000
 		closest_point = None
 		for point in self.buffer :
-			this_dist = np.distance(point, p)
+			#this_dist = np.distance(point, p)
+			this_dist = distance.euclidean(point,p)
 			if this_dist < closest_dist :
 				closest_buffer_dist = this_dist
 				closest_point = point
 
-		if kd_distance < closest_buffer_dist :
-			return  self.kdtree_data[:,qnearI]
+		if self.kdtree != None :
+			kd_distance, qnearI = self.kdtree.query(p)
+			if kd_distance < closest_buffer_dist :
+				return  self.kdtree_data[:,qnearI]
 
 		return closest_point
 
@@ -79,9 +93,13 @@ class Buffered_KD_Tree :
 
 def path_from(path, node) :
 	return_path = []
-	while not node == None :
-		return_path.append(node)
-		node = path[node]
+	return_path.append(path[len(path)-1][1])
+	looking_for = path[len(path)-1][0]
+	for i in xrange( len(path)-1, -1, -1) :
+		if looking_for == path[i][1] :
+			return_path.append(path[i][1])
+			looking_for == path[i][0]
+
 
 	return return_path
 
@@ -112,13 +130,15 @@ def simplify_path(path, n) :
 
 
 def RRT_Connect_Planner(qinit, qgoal,k) :
+	print sample_cspace()
+
 	Ta = Buffered_KD_Tree(qinit, 20)
-	path_a = {}
-	path_a[qinit] = None
+	path_a = []
+	path_a.append((None,qinit))
 
 	Tb = Buffered_KD_Tree(qgoal, 20)
-	path_b = {}
-	path_b[qgoal] = None
+	path_b = []
+	path_b.append((None,qgoal))
 
 	delta = .05 #delta step to random point
 
@@ -129,7 +149,7 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 				break
 			qrand = sample_cspace()
 
-
+		
 		#qrand is a valid point, now let's find the nearest neighbor,qnear
 		qnear = None
 		if i%2 : #work from end
@@ -148,9 +168,9 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 
 			if i%2 : #add to end
 				Tb.insert(qnew)
-				path_b[qnew] = qnear
+				path_b.append((qnear,qnew))
 				nearest_solution = Ta.Nearest_Neighbor(qnew)
-				end_distance = np.distance(qnew, nearest_solution)
+				end_distance = distance.euclidean(qnew, nearest_solution)
 				#check if qnear is close enough to opposite tree
 				if end_distance <= delta and Line_Collision_Check(nearest_solution,qnew) :
 					#the trees can reach each other to create the path
@@ -161,9 +181,9 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 			#do opposite as above for this case
 			else :
 				Ta.insert(qnew)
-				path_a[qnew] = qnear
+				path_a.append((qnear,qnew))
 				nearest_solution = Tb.Nearest_Neighbor(qnew)
-				end_distance = np.distance(qnew, nearest_solution)
+				end_distance = distance.euclidean(qnew, nearest_solution)
 				if end_distance <= delta and Line_Collision_Check(nearest_solution,qnew) :
 					atohere = path_from(path_a,qnew).reverse()
 					heretob = path_from(path_b,nearest_solution)
@@ -171,6 +191,7 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 
 	print "Failed to find path in k steps"
 	return []
+
 
 
 def test() :
