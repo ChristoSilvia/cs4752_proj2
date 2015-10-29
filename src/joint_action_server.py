@@ -25,19 +25,25 @@ class JointActionServer():
         self.deriv_step = 1e-5
         
         self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
+        loginfo("Initialized /move_end_effector_trajectory")
         self.move_tool_trajectory = rospy.Service('move_tool_trajectory', JointAction, self.move_tool_trajectory)
+        loginfo("Initialized /move_tool_trajectory")
         self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
+        loginfo("Initialized /end_effector_position")
         self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
+        loginfo("Initialized /end_effector_velocity")
         self.tool_position_srv = rospy.Service('tool_position', EndEffectorPosition, self.get_tool_position_response)
+        loginfo("Initialized /tool_position")
 
         rospy.spin()
 
     def move_end_effector_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
+        loginfo("Unpacked desired events")
         self.move_trajectory(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
         return JointActionResponse()
 
-    def move_end_effector_trajectory(self, args):
+    def move_tool_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
         offset = self.get_tool_offset()
         self.move_trajectory(times, x_positions_velocities + offset[0], 
@@ -46,7 +52,7 @@ class JointActionServer():
 
         return JointActionResponse()
 
-    def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
+    def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
  
         # add in derivatives
         spline_order = 3
@@ -92,30 +98,40 @@ class JointActionServer():
         return np.sqrt(np.dot(jacobian,jacobian.T))
 
     def get_joint_velocities(self, workspace_velocity_and_w):
-        jacobian_pinv = self.limb_kin.jacobian_pseudo_inverse()
-        jacobian = self.limb_kin.jacobian()
+        Jplus = self.limb_kin.jacobian_pseudo_inverse()
+        J = self.limb_kin.jacobian()
         
-        rank, nullspace = null(jacobian)
+        rank, nullspace = null(J)
         assert(rank == 6, "Jacobian is Singular")
         Jb = nullspace[:,0]
 
         J_squared = np.dot(J, J.T)
         J_squared_inv = np.linalg.inv(J_squared)
-
-        direction_of_manipulatibility = np.empty((7,1))
+        direction_of_manipulability = np.empty((7,1))
         for i in xrange(0,7):
-            angles = self.limb.get_joint_angles()
+            angles = self.limb.joint_angles()
+            loginfo("Current Joint angles: {0}".format(angles))
             angles[self.joint_names[i]] += self.deriv_step
             deltaJ = self.limb_kin.jacobian(joint_values=angles)
-            dJ = (deltaJ - jacobian)/self.deriv_step
+            dJ = (deltaJ - J)/self.deriv_step
+            loginfo("Manipulability Derivatives: {0}".format(dJ))
             dJSquared = np.dot(J,dJ.T) + np.dot(dJ,J.T)
             trace = 0.0
-            for j in xrange(0,7):
-                trace += np.dot(J_squared_inv[i,:], dJsquared[:,i])
+            loginfo("J_squared_inv: {0}".format(J_squared_inv))
+            loginfo("dJSquared: {0}\n{1} rows and {2} columns".format(dJSquared,dJSquared.shape[0],dJSquared.shape[1]))
+            loginfo("Their Product: {0}".format(np.dot(J_squared_inv, dJSquared)))
+            for j in xrange(0,6):
+                for k in xrange(0,6):
+                    trace += J_squared_inv[j,k] * dJSquared[k,j]
             direction_of_manipulability[i] = trace
+        loginfo("Direction of Manipulability: {0}".format(direction_of_manipulability))
            
-		a = np.dot(jacobian_pinv, workspace_velocity_and_w) 
-		return a + Jb * maximize_cosine_constrained(a, Jb, direction_of_manipulability, 5*np.dot(a,a))
+        a = np.dot(Jplus, workspace_velocity_and_w)
+        loginfo("Pseudoinverted a: {0}".format(a)) 
+        loginfo("Jb: {0}".format(Jb))
+        loginfo("Direction of Manipulatbility: {0}".format(direction_of_manipulability))
+        loginfo("Joint Velocity Limit: {0}".format(5*np.dot(a.T,a)))
+        return a + Jb * maximize_cosine_constrained(a, Jb, direction_of_manipulability , 5*np.dot(a.T,a))
 
     def make_joint_dict(self, joint_vector):
         joint_dict = {}
@@ -186,9 +202,8 @@ def loginfo(message):
 
 def quaternion_to_rotation(q):
     # from http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
-    return np.array([[1 - 2*q.y**2 - 2*q.z**2, 2*q.x*q.y - 2*q.z*q.w, 2*q.x*q.z + 2*q.y*q.w],
-                     [2*q.x*q.y + 2*q.z*q.w, 1 - 2*q.x**2 - 2*q.z**2, 2*q.y*q.z - 2*q.x*q.w],
-                     [2*q.x*.q.z + 2*q.y*q.w, 2*q.y*q.z + 2*q.x*q.w, 1 - 2*q.x**2 - 2*q.y**2]])
+#   return np.array([[1 - 2*q.y*q.y - 2*q.z*q.z, 2*q.x*q.y - 2*q.z*q.w, 2*q.x*q.z + 2*q.y*q.w],[2*q.x*q.y + 2*q.z*q.w, 1 - 2*q.x*q.x - 2*q.z*q.z, 2*q.y*q.z - 2*q.x*q.w],[2*q.x*.q.z + 2*q.y*q.w, 2*q.y*q.z + 2*q.x*q.w, 1 - 2*q.x*q.x - 2*q.y*q.y]])
+    return np.array([[1,0,0],[0,1,0],[0,0,1]])
 
 def null(a, rtol=1e-5):
     # http://stackoverflow.com/questions/19820921/a-simple-matlab-like-way-of-finding-the-null-space-of-a-small-matrix-in-numpy
@@ -196,25 +211,26 @@ def null(a, rtol=1e-5):
     rank = (s > rtol*s[0]).sum()
     return rank, v[rank:].T.copy()
 
-def closest_between_two_lines(a,b,c,d)
+def closest_between_two_lines(a,b,c,d):
     # if \vec{a} s + \vec{b} and \vec{c} t + \vec{d} are lines, this returns the point in the
     #   first line which is closest to the second line
-    A = np.array([[np.dot(a,a), -np.dot(c,a)],[-np.dot(c,a), np.dot(c,c)])
+    A = np.array([[np.dot(a,a), -np.dot(c,a)],[-np.dot(c,a), np.dot(c,c)]])
     b = np.array([[- np.dot(a,b) + np.dot(d, a)/2.0],[- np.dot(c,d) + np.dot(c, b)/2]])
     s_optimal = np.linalg.solve(A,b)[0]
     return a * s_optimal + b
 
 def maximize_cosine_constrained(a,b,c,n2):
-   # same as maximize_cosine but the result should have norm no greater than n^2
-   aa = np.dot(a,a)
-   ab = np.dot(a,b)
-   ac = np.dot(a,c)
-   bc = np.dot(b,c)
-   bb = np.dot(b,b)
-   ab_over_aa = ab/aa
-   lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
-   upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
-   return np.clip((bc*ab - bb*ac)/(ab*ac - aa*bc), lower_root, upper_root)
+    # same as maximize_cosine but the result should have norm no greater than n^2
+    aa = np.dot(a,a)
+    ab = np.dot(a,b)
+    ac = np.dot(a,c)
+    bc = np.dot(b,c)
+    bb = np.dot(b,b)
+    loginfo("Computed Products")
+    ab_over_aa = ab/aa
+    lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
+    upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
+    return np.clip((bc*ab - bb*ac)/(ab*ac - aa*bc), lower_root, upper_root)
 
 if __name__ == '__main__':
     try: 
