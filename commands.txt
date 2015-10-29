@@ -11,3 +11,8 @@ rosrun baxter_examples joint_position_keyboard.py
 rosrun baxter_interface joint_trajectory_action_server.py
 
 rosrun baxter_tools tuck_arms.py -u
+
+
+roslaunch cs4752_proj2 typewriter.launch
+
+http://localhost:8000/typewriter.html

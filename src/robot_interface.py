@@ -3,12 +3,14 @@
 
 import numpy as np
 from scipy.spatial import KDTree
+from scipy.interpolate import PiecewisePolynomial
 
 import rospy
 from cs4752_proj2.srv import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
+from tf.transformations import *
 
 
 
@@ -23,6 +25,11 @@ joint_limits = np.array([[-2.461, 0.890],
                          [-1.571, 2.094],
                          [-3.059, 3.059]])
 n_dof = 7
+
+plane_norm = np.array([0,0,0])
+plane_origin = np.array([0,0,0])
+plane_rotation = np.empty([3,3])
+
 ############
 
 # VARIABLE PARAMETERS
@@ -32,6 +39,54 @@ limb = 'left'
 ############
 
 global kdtree
+
+def calibrate_plane() :
+    point_count = 0
+    point_pos = []
+    global left, plane_norm, plane_origin, plane_rotation
+    while point_count < 3 :
+        prompt = "Press Any Key when Arm is on the %d plane point" % point_count
+        cmd = raw_input(prompt)
+        point_pos.append(np.array(left.endpoint_pose()['position']))
+        # print point_pos[point_count]
+        point_count += 1
+
+    vec1 = point_pos[1] - point_pos[0]
+    vec2 = point_pos[2] - point_pos[0]
+    plane_norm = np.cross(vec1, vec2)
+    plane_origin = np.average(point_pos, axis=0)
+    # print "Finished Calibrating Plane"
+    # print plane_norm
+    # print plane_origin
+
+    #need transform to make norm the z vector
+    #def rotation_matrix(angle, direction, point=None):
+    #Return matrix to rotate about axis defined by point and direction.
+
+    x_plane = vec1/np.linalg.norm(vec1)
+    y_plane = np.cross(vec1, plane_norm)
+    y_plane = y_plane/np.linalg.norm(y_plane)
+    z_plane = plane_norm/np.linalg.norm(plane_norm)
+    plane_rotation = np.array([x_plane, y_plane, z_plane])
+    # print plane_rotation
+
+def PlaneToBase(plane_x,plane_y) :
+    global left, plane_norm, plane_origin, plane_rotation
+
+    translate = [plane_origin[0],plane_origin[1],plane_origin[2]]
+    T = numpy.identity(4)
+    T[:3, 3] = translate[:3]
+
+    R = np.append(plane_rotation,[[0,0,0]],axis=0)
+    R = np.append(R,[[0],[0],[0],[1]],axis=1)
+    # print R
+
+    M = np.dot(T, R)
+
+    plane_coords = np.array([plane_x,plane_y,0,1])
+    base_coords = np.dot(M, plane_coords.T)
+    print "base_coords: {0}".format(base_coords)
+    # print base_coords
 
 
 def loginfo(infostring):
@@ -50,12 +105,6 @@ def nearest_neighbor_response(req):
     loginfo("Recieved Nearest Neighbor Query")
     distance, nearest_point_index = kdtree.query(np.array(req.point))
     return NearestNeighborResponse(kdtree.data[nearest_point_index,:])
-
-def null(A):
-    eps = 1e-4
-    u, s, vh = np.linalg.svd(A, full_matrices=1, compute_uv = 1)
-    null_space = np.compress(s < eps, vh, axis=0)
-    return null_space.T
 
 def get_joint_velocities(workspace_velocity):
     global left_kin
@@ -160,6 +209,29 @@ def moveto_blind(final_position, speed):
         loginfo("{0} sec left over".format(extra_time))
         rospy.sleep(extra_time)
 
+def move_position_trajectory_blind(trajectory, total_time):
+    """Trajectory is a three-row n-column array of
+	workspace positions"""
+    global left
+    full_trajectory = np.empty(length(trajectory)+1)
+    full_trajectory[0] = left.endpoint_pose()['position']
+    full_trajectory[1:] = trajectory
+    space_differences = np.linalg.norm(full_trajectory[1:] - full_trajectory[:-1], axis=0)
+    trajectory_times = total_time * (space_differences / np.sum(space_differences))
+    dt = 0.05
+    spline_order = 3
+    T = np.arange(0, total_time, dt)
+    n = length(T)
+    interpolator = PiecewisePolynomial(trajectory_times, full_trajectory, order=spline_order, direction=1)
+    
+    for i in xrange(0,n):
+        t_start = rospy.get_time()
+        
+        velocity_and_w = np.zeros((6,1))
+        velocity_and_w[0:2] = interpolator.derivative(T[i]) 
+        
+         
+
 def robot_interface():
     global kdtree
     global left
@@ -186,18 +258,27 @@ def robot_interface():
     left = baxter_interface.Limb('left')
     left_kin = baxter_kinematics('left')
 
-    n_iterations = 10
-    errors = np.empty(n_iterations)
-    initial_pose = np.array(left.endpoint_pose()['position'])
-    loginfo("Beginning Error Evaluation")
-    for i in xrange(0,n_iterations):
-        desired_pose = initial_pose + (0.3*np.random.rand(3) - 0.15)
-        moveto_proportional(desired_pose, 0.05)
-        rospy.sleep(0.1)
-        error = desired_pose - left.endpoint_pose()['position']
-        loginfo("Error: {0}".format(np.linalg.norm(error)))
-        errors[i] = np.linalg.norm(error)
-    loginfo("Mean Error: {0}".format(np.mean(errors)))
+    calibrate_plane()
+    global plane_rotation
+    print plane_rotation
+
+    print "################# PlaneToBase(0,0): #################"
+    print PlaneToBase(0,0)
+    print "################# PlaneToBase(10,10): #################"
+    print PlaneToBase(10,10)
+
+    # n_iterations = 10
+    # errors = np.empty(n_iterations)
+    # initial_pose = np.array(left.endpoint_pose()['position'])
+    # loginfo("Beginning Error Evaluation")
+    # for i in xrange(0,n_iterations):
+    #     desired_pose = initial_pose + (0.3*np.random.rand(3) - 0.15)
+    #     moveto_proportional(desired_pose, 0.05)
+    #     rospy.sleep(0.1)
+    #     error = desired_pose - left.endpoint_pose()['position']
+    #     loginfo("Error: {0}".format(np.linalg.norm(error)))
+    #     errors[i] = np.linalg.norm(error)
+    # loginfo("Mean Error: {0}".format(np.mean(errors)))
 
     rospy.spin()
 

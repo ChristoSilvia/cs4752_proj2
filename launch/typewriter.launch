@@ -1,0 +1,10 @@
+<launch>
+	<node name="bezier" pkg="cs4752_proj2" type="bezier.py" output="screen">
+	</node>
+	<include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch" >
+		<arg name="port" value="9090"/>
+	</include>
+
+	<node name="SimpleHTTPServer" pkg="cs4752_proj2" type="SimpleHTTPServer.sh">
+	</node>
+</launch>

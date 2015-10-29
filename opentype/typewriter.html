@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenType Bezier Curve Typewriter</title>
+    <script type="text/javascript" src="../dist/opentype.js"></script>
+    <script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
+    <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
+    <script type="text/javascript" type="text/javascript"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <style></style>
+</head>
+<body>
+<div class="container">
+    <form action="" onsubmit="getInput()" id="myform">
+        <div>
+            Text:
+            <input type="text" id="input">
+            Font Size:
+            <input type="number" id="fontsize" min="10" max="2048" value="100">
+            <input type="submit">
+        </div>
+    </form>
+</div>
+
+<script>
+    var text;
+    var fontsize;
+
+    $("#myform").submit(function(event) {
+        event.preventDefault(); 
+    });
+
+    function getInput() {
+        text = document.getElementById("input").value;
+        fontsize = parseInt(document.getElementById("fontsize").value);
+        // alert("Sending: "+text);
+        resetPlot();
+        // font = 'Pacifico.ttf'
+        font = 'Roboto-Black.ttf'
+        stringToPathMsg(font, text, fontsize);
+        event.preventDefault();
+    }
+
+    var inFont, outFont;
+
+    var ros = new ROSLIB.Ros({
+        url : 'ws://localhost:9090'
+    });
+
+    ros.on('connection', function() {
+        console.log('Connected to websocket server.');
+    });
+
+    ros.on('error', function(error) {
+        console.log('Error connecting to websocket server: ', error);
+    });
+
+    ros.on('close', function() {
+        console.log('Connection to websocket server closed.');
+    });
+
+    // Publishing a Topic
+    // ------------------
+
+    var cmd_path_pub = new ROSLIB.Topic({
+        ros : ros,
+        name : '/cmd_path',
+        messageType : 'cs4752_proj2/Path'
+    });
+
+    function createPathMsg(cmd) {
+        cmd.y *= -1;
+        if (cmd.type == "C") {
+            cmd.y1 *= -1;
+            cmd.y2 *= -1;
+        }
+        else if (cmd.type == "Z") {
+            return new ROSLIB.Message({
+                type : cmd.type,
+                x : 0.0,
+                x1 : 0.0,
+                x2 : 0.0,
+                y : 0.0,
+                y1 : 0.0,
+                y2 : 0.0
+            });
+        }
+
+       return new ROSLIB.Message({
+            type : cmd.type,
+            x : cmd.x,
+            x1 : cmd.x1,
+            x2 : cmd.x2,
+            y : cmd.y,
+            y1 : cmd.y1,
+            y2 : cmd.y2
+        });
+    }
+
+    function resetPlot() {
+        var resetMsg = new ROSLIB.Message({
+            type : "R",
+            x : 0.0,
+            x1 : 0.0,
+            x2 : 0.0,
+            y : 0.0,
+            y1 : 0.0,
+            y2 : 0.0
+        });
+        cmd_path_pub.publish(resetMsg);
+    }
+
+    function sendSize(fontsize) {
+        var sizeMsg = new ROSLIB.Message({
+            type : "S",
+            x : fontsize,
+            x1 : 0.0,
+            x2 : 0.0,
+            y : 0.0,
+            y1 : 0.0,
+            y2 : 0.0
+        });
+        cmd_path_pub.publish(sizeMsg);
+    }
+
+    function stringToPathMsg(font,text,fontSize) {
+        opentype.load('../fonts/'+font, function(err, font) {
+            if (err) {
+                alert('Could not load font: ' + err);
+            } else {
+                // Use your font here.
+                inFont = font;
+                var buffer = inFont.toBuffer();
+                outFont = opentype.parse(buffer);
+
+                console.log("####################################");
+
+                var paths = outFont.getPath(text, 0, 0, fontSize);
+                console.log(paths);
+
+                sendSize(fontSize);
+
+                for (var p = 0; p < paths.commands.length; p++) {
+                    var cmd = paths.commands[p];
+                    var cmdMsg = createPathMsg(cmd);
+                    cmd_path_pub.publish(cmdMsg);
+                }
+
+                console.log("####################################");
+            }
+        });
+    }
+
+    
+
+</script>
+</body>
+</html>
