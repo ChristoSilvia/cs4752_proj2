@@ -113,11 +113,9 @@ class JointActionServer():
             for j in xrange(0,7):
                 trace += np.dot(J_squared_inv[i,:], dJsquared[:,i])
             direction_of_manipulability[i] = trace
-            
-        return closest_between_two_lines(Jb, 
-                                         np.dot(jacobian_pinv, workspace_velocity_and_w),
-                                         direction_of_manipulability,
-                                         0)
+           
+		a = np.dot(jacobian_pinv, workspace_velocity_and_w) 
+		return a + Jb * maximize_cosine_constrained(a, Jb, direction_of_manipulability, 5*np.dot(a,a))
 
     def make_joint_dict(self, joint_vector):
         joint_dict = {}
@@ -205,6 +203,18 @@ def closest_between_two_lines(a,b,c,d)
     b = np.array([[- np.dot(a,b) + np.dot(d, a)/2.0],[- np.dot(c,d) + np.dot(c, b)/2]])
     s_optimal = np.linalg.solve(A,b)[0]
     return a * s_optimal + b
+
+def maximize_cosine_constrained(a,b,c,n2):
+   # same as maximize_cosine but the result should have norm no greater than n^2
+   aa = np.dot(a,a)
+   ab = np.dot(a,b)
+   ac = np.dot(a,c)
+   bc = np.dot(b,c)
+   bb = np.dot(b,b)
+   ab_over_aa = ab/aa
+   lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
+   upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
+   return np.clip((bc*ab - bb*ac)/(ab*ac - aa*bc), lower_root, upper_root)
 
 if __name__ == '__main__':
     try: 
