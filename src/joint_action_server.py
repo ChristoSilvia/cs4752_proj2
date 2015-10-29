@@ -196,14 +196,6 @@ def null(a, rtol=1e-5):
     rank = (s > rtol*s[0]).sum()
     return rank, v[rank:].T.copy()
 
-def closest_between_two_lines(a,b,c,d)
-    # if \vec{a} s + \vec{b} and \vec{c} t + \vec{d} are lines, this returns the point in the
-    #   first line which is closest to the second line
-    A = np.array([[np.dot(a,a), -np.dot(c,a)],[-np.dot(c,a), np.dot(c,c)])
-    b = np.array([[- np.dot(a,b) + np.dot(d, a)/2.0],[- np.dot(c,d) + np.dot(c, b)/2]])
-    s_optimal = np.linalg.solve(A,b)[0]
-    return a * s_optimal + b
-
 def maximize_cosine_constrained(a,b,c,n2):
    # same as maximize_cosine but the result should have norm no greater than n^2
    aa = np.dot(a,a)
