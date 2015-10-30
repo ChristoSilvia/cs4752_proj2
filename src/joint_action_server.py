@@ -62,7 +62,7 @@ class JointActionServer():
         
         T = np.arange(0, times[-1], self.dt)
         n = len(T)
-        velocity_and_w = np.zeros((6,1))
+        velocity_and_w = np.zeros(6)
         velocity_and_w[0] = xinterpolator.derivative(T[0])
         velocity_and_w[1] = yinterpolator.derivative(T[0])
         velocity_and_w[2] = zinterpolator.derivative(T[0])
@@ -98,16 +98,18 @@ class JointActionServer():
         return np.sqrt(np.dot(jacobian,jacobian.T))
 
     def get_joint_velocities(self, workspace_velocity_and_w):
-        Jplus = self.limb_kin.jacobian_pseudo_inverse()
+        Jplus = np.asarray(self.limb_kin.jacobian_pseudo_inverse())
         J = self.limb_kin.jacobian()
         
         rank, nullspace = null(J)
         assert(rank == 6, "Jacobian is Singular")
-        Jb = nullspace[:,0]
+        Jb = np.empty(7)
+        for i in xrange(7):
+            Jb[i] = nullspace[i,0]
 
         J_squared = np.dot(J, J.T)
         J_squared_inv = np.linalg.inv(J_squared)
-        direction_of_manipulability = np.empty((7,1))
+        direction_of_manipulability = np.empty(7)
         for i in xrange(0,7):
             angles = self.limb.joint_angles()
 #            loginfo("Current Joint angles: {0}".format(angles))
@@ -125,15 +127,15 @@ class JointActionServer():
                     trace += J_squared_inv[j,k] * dJSquared[k,j]
             direction_of_manipulability[i] = trace
 #        loginfo("Direction of Manipulability: {0}".format(direction_of_manipulability))
-           
         b = np.dot(Jplus, workspace_velocity_and_w)
-        mag_b_squared = 0.0
-        for i in xrange(0,7):
-            mag_b_squared += b[i,0]*b[i,0]        
+        mag_b_squared = np.dot(b,b)
 #        loginfo("Pseudoinverted b: {0}".format(b)) 
 #        loginfo("Jb: {0}".format(Jb))
 #        loginfo("Direction of Manipulatbility: {0}".format(direction_of_manipulability))
 #        loginfo("Joint Velocity Limit: {0}".format(0.1 + 5*mag_b_squared))
+        loginfo("b: {0}".format(b))
+        loginfo("Jb: {0}".format(Jb))
+        loginfo("dmu: {0}".format(direction_of_manipulability))
         return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , 5*mag_b_squared + 0.1)
 
     def make_joint_dict(self, joint_vector):
@@ -224,14 +226,17 @@ def closest_between_two_lines(a,b,c,d):
 
 def maximize_cosine_constrained(a,b,c,n2):
     # same as maximize_cosine but the result should have norm no greater than n^2
-#    loginfo(a)
-    aa = np.dot(a.T,a)[0,0]
-#    loginfo(aa)
-    ab = np.dot(a.T,b)[0,0]
-    ac = np.dot(a.T,c)[0,0]
-    bc = np.dot(b.T,c)[0,0]
-    bb = np.dot(b.T,b)[0,0]
-#    loginfo("Computed Products")
+    loginfo(a)
+    # already normalized by the norm routine
+    aa = 1.0
+    loginfo(np.dot(a,a))
+    loginfo(b)
+    ab = np.dot(a,b)
+    loginfo(ab)
+    ac = np.dot(a,c)
+    bc = np.dot(b,c)
+    bb = np.dot(b,b)
+    loginfo("Computed Products")
     ab_over_aa = ab/aa
     lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
     upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
@@ -244,8 +249,8 @@ def maximize_cosine_constrained(a,b,c,n2):
         loginfo("Minimum")
         upper_vec = a * upper_root + b
         lower_vec = a * lower_root + b
-        upper_cos = np.dot(upper_vec.T,c)[0,0]/np.sqrt(np.dot(upper_vec.T,upper_vec)[0,0]*np.dot(c.T,c)[0,0])
-        lower_cos = np.dot(lower_vec.T,c)[0,0]/np.sqrt(np.dot(lower_vec.T,lower_vec)[0,0]*np.dot(c.T,c)[0,0])
+        upper_cos = np.dot(upper_vec,c)/np.sqrt(np.dot(upper_vec,upper_vec)*np.dot(c,c))
+        lower_cos = np.dot(lower_vec,c)/np.sqrt(np.dot(lower_vec,lower_vec)*np.dot(c,c))
         if upper_cos > lower_cos:
             return upper_root
         else:
