@@ -20,7 +20,7 @@ class JointActionServer():
         self.joint_names = self.limb.joint_names()
         self.kp = 0.05
         self.ki = 0.01
-        self.dt = 0.015
+        self.dt = 0.012
         self.pen_length = 0.08
         self.deriv_step = 1e-5
         
@@ -235,7 +235,21 @@ def maximize_cosine_constrained(a,b,c,n2):
     ab_over_aa = ab/aa
     lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
     upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
-    return np.clip((bc*ab - bb*ac)/(ab*ac - aa*bc), lower_root, upper_root)
+    s = (bc*ab - bb*ac)/(ab*ac - aa*bc)
+    is_maximum = 2*ab*ac*s*s + (ab*ab*ac + 3*aa*ac*bb)*s + (aa*bc + 2*ab*ac)*bb > 2*bc*aa*aa*s*s + bc*ab*ab
+    if is_maximum:
+        loginfo("Maximum")
+        return np.clip(s, lower_root, upper_root)
+    else:
+        loginfo("Minimum")
+        upper_vec = a * upper_root + b
+        lower_vec = a * lower_root + b
+        upper_cos = np.dot(upper_vec.T,c)[0,0]/np.sqrt(np.dot(upper_vec.T,upper_vec)[0,0]*np.dot(c.T,c)[0,0])
+        lower_cos = np.dot(lower_vec.T,c)[0,0]/np.sqrt(np.dot(lower_vec.T,lower_vec)[0,0]*np.dot(c.T,c)[0,0])
+        if upper_cos > lower_cos:
+            return upper_root
+        else:
+            return lower_root
 
 if __name__ == '__main__':
     try: 
