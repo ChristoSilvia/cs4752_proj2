@@ -20,7 +20,7 @@ class JointActionServer():
         self.joint_names = self.limb.joint_names()
         self.kp = 0.05
         self.ki = 0.01
-        self.dt = 0.01
+        self.dt = 0.015
         self.pen_length = 0.08
         self.deriv_step = 1e-5
         
@@ -85,10 +85,10 @@ class JointActionServer():
             velocity_and_w[0] = xinterpolator.derivative(T[i]) + self.kp * vx_corrector + self.ki * vx_integral
             velocity_and_w[1] = yinterpolator.derivative(T[i]) + self.kp * vy_corrector + self.ki * vy_integral
             velocity_and_w[2] = zinterpolator.derivative(T[i]) + self.kp * vz_corrector + self.ki * vz_integral
-            loginfo("Computation Took: {0}".format(rospy.get_time() - t_start))
  
             desired_interval = T[i] - T[i-1]
             end_time = T[i] - T[i-1] + t_start
+            loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, T[i] -T[i-1]))
             rospy.sleep(end_time - rospy.get_time())
    
         self.limb.exit_control_mode()     
@@ -110,28 +110,31 @@ class JointActionServer():
         direction_of_manipulability = np.empty((7,1))
         for i in xrange(0,7):
             angles = self.limb.joint_angles()
-            loginfo("Current Joint angles: {0}".format(angles))
+#            loginfo("Current Joint angles: {0}".format(angles))
             angles[self.joint_names[i]] += self.deriv_step
             deltaJ = self.limb_kin.jacobian(joint_values=angles)
             dJ = (deltaJ - J)/self.deriv_step
-            loginfo("Manipulability Derivatives: {0}".format(dJ))
+#            loginfo("Manipulability Derivatives: {0}".format(dJ))
             dJSquared = np.dot(J,dJ.T) + np.dot(dJ,J.T)
             trace = 0.0
-            loginfo("J_squared_inv: {0}".format(J_squared_inv))
-            loginfo("dJSquared: {0}\n{1} rows and {2} columns".format(dJSquared,dJSquared.shape[0],dJSquared.shape[1]))
-            loginfo("Their Product: {0}".format(np.dot(J_squared_inv, dJSquared)))
+#            loginfo("J_squared_inv: {0}".format(J_squared_inv))
+#            loginfo("dJSquared: {0}\n{1} rows and {2} columns".format(dJSquared,dJSquared.shape[0],dJSquared.shape[1]))
+#            loginfo("Their Product: {0}".format(np.dot(J_squared_inv, dJSquared)))
             for j in xrange(0,6):
                 for k in xrange(0,6):
                     trace += J_squared_inv[j,k] * dJSquared[k,j]
             direction_of_manipulability[i] = trace
-        loginfo("Direction of Manipulability: {0}".format(direction_of_manipulability))
+#        loginfo("Direction of Manipulability: {0}".format(direction_of_manipulability))
            
-        a = np.dot(Jplus, workspace_velocity_and_w)
-        loginfo("Pseudoinverted a: {0}".format(a)) 
-        loginfo("Jb: {0}".format(Jb))
-        loginfo("Direction of Manipulatbility: {0}".format(direction_of_manipulability))
-        loginfo("Joint Velocity Limit: {0}".format(5*np.dot(a.T,a)))
-        return a + Jb * maximize_cosine_constrained(a, Jb, direction_of_manipulability , 5*np.dot(a.T,a))
+        b = np.dot(Jplus, workspace_velocity_and_w)
+        mag_b_squared = 0.0
+        for i in xrange(0,7):
+            mag_b_squared += b[i,0]*b[i,0]        
+#        loginfo("Pseudoinverted b: {0}".format(b)) 
+#        loginfo("Jb: {0}".format(Jb))
+#        loginfo("Direction of Manipulatbility: {0}".format(direction_of_manipulability))
+#        loginfo("Joint Velocity Limit: {0}".format(0.1 + 5*mag_b_squared))
+        return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , 5*mag_b_squared + 0.1)
 
     def make_joint_dict(self, joint_vector):
         joint_dict = {}
@@ -221,12 +224,14 @@ def closest_between_two_lines(a,b,c,d):
 
 def maximize_cosine_constrained(a,b,c,n2):
     # same as maximize_cosine but the result should have norm no greater than n^2
-    aa = np.dot(a,a)
-    ab = np.dot(a,b)
-    ac = np.dot(a,c)
-    bc = np.dot(b,c)
-    bb = np.dot(b,b)
-    loginfo("Computed Products")
+#    loginfo(a)
+    aa = np.dot(a.T,a)[0,0]
+#    loginfo(aa)
+    ab = np.dot(a.T,b)[0,0]
+    ac = np.dot(a.T,c)[0,0]
+    bc = np.dot(b.T,c)[0,0]
+    bb = np.dot(b.T,b)[0,0]
+#    loginfo("Computed Products")
     ab_over_aa = ab/aa
     lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
     upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
