@@ -3,6 +3,8 @@
 import numpy as np
 from scipy.interpolate import PiecewisePolynomial
 
+from matplotlib import pyplot as plt
+
 import rospy
 from geometry_msgs.msg import Vector3
 import baxter_interface
@@ -68,6 +70,8 @@ class JointActionServer():
         velocity_and_w[2] = zinterpolator.derivative(T[0])
         vx_corrector, vy_corrector, vz_corrector = 0.0, 0.0, 0.0
         vx_integral, vy_integral, vz_integral = 0.0, 0.0, 0.0
+        mans = np.empty(n)
+        mans[0] = self.get_manipulability()
         for i in xrange(1,n):
             t_start = rospy.get_time()
             self.limb.set_joint_velocities(
@@ -86,16 +90,19 @@ class JointActionServer():
             velocity_and_w[1] = yinterpolator.derivative(T[i]) + self.kp * vy_corrector + self.ki * vy_integral
             velocity_and_w[2] = zinterpolator.derivative(T[i]) + self.kp * vz_corrector + self.ki * vz_integral
  
+            mans[i] = self.get_manipulability()
             desired_interval = T[i] - T[i-1]
             end_time = T[i] - T[i-1] + t_start
             loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, T[i] -T[i-1]))
             rospy.sleep(end_time - rospy.get_time())
    
+        plt.plot(T,mans)
+        plt.show()
         self.limb.exit_control_mode()     
 
     def get_manipulability(self):
         jacobian = self.limb_kin.jacobian()
-        return np.sqrt(np.dot(jacobian,jacobian.T))
+        return np.sqrt(np.linalg.det(np.dot(jacobian,jacobian.T)))
 
     def get_joint_velocities(self, workspace_velocity_and_w):
         Jplus = self.limb_kin.jacobian_pseudo_inverse()
