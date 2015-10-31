@@ -38,10 +38,8 @@ def test():
                                  initial_position.y + 0.1*np.random.rand(),
                                  initial_position.z + 0.1*np.random.rand()),
                          initial_position],
-                        [Vector3(0.0, 0.0, 0.0),
+                        [Vector3(0.11, 0.0, 0.0),
                          Vector3(0.0, 0.0, 0.0)])
-    loginfo(initial_position)
-    loginfo(position_server().position)
     loginfo(position_server().position.x - initial_position.x)      
     loginfo(position_server().position.y - initial_position.y)      
     loginfo(position_server().position.z - initial_position.z)      
