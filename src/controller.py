@@ -4,6 +4,7 @@ from scipy.spatial import KDTree
 from scipy.interpolate import PiecewisePolynomial
 
 import rospy
+from cs4752_proj2.msg import *
 from cs4752_proj2.srv import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
@@ -15,7 +16,7 @@ global left, plane_norm, plane_origin, plane_rotation
 def loginfo(logstring):
     rospy.loginfo("Controller: {0}".format(logstring))
 
-def calibrate_plane() :
+def calibrate_plane():
     point_count = 0
     point_pos = []
     global left, plane_norm, plane_origin, plane_rotation
@@ -45,7 +46,7 @@ def calibrate_plane() :
     plane_rotation = np.array([x_plane, y_plane, z_plane])
     # print plane_rotation
 
-def PlaneToBase(plane_x,plane_y) :
+def PlaneToBase(plane_x,plane_y):
     global left, plane_norm, plane_origin, plane_rotation
 
     translate = [plane_origin[0],plane_origin[1],plane_origin[2]]
@@ -63,6 +64,15 @@ def PlaneToBase(plane_x,plane_y) :
     print "base_coords: {0}".format(base_coords)
     # print base_coords
 
+def plane_trajCb(data):
+    print "#################################"
+    print "plane_trajCb"
+    print "#################################"
+
+def traj_to_base_frame(traj):
+    pass
+
+
 def controller():
     rospy.init_node('controller')
     loginfo("Initialized node Controller")
@@ -73,6 +83,9 @@ def controller():
     left_kin = baxter_kinematics('left')
 
     calibrate_plane()
+
+    rospy.Subscriber("/plane_traj", Trajectory, plane_trajCb, queue_size=10000)
+
     global plane_rotation
     print plane_rotation
 
