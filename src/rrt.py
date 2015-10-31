@@ -29,10 +29,9 @@ def sample_cspace():
 		r[i] = temp[i]
 	return r#sample_3d()
 def sample_3d() :
-	r = np.zeros(3)
-	r[0] = np.random.rand(1)*10
-	r[1] = np.random.rand(1)*10
-	r[2] = np.random.rand(1)*10
+	r = np.zeros(2)
+	r[0] = np.random.rand(1)*5
+	r[1] = np.random.rand(1)*5
 	return r
 
 #use the course staff collision checks here
@@ -75,7 +74,7 @@ class Buffered_KD_Tree :
 			self.kdtree = KDTree(self.kdtree_data)
 			self.buffer = []
 			self.buffer_count = 0
-			self.buffer_size = self.buffer_size * 2
+			#self.buffer_size = self.buffer_size * 2
 
 			#self.buffer_size = self.buffer_size * 2
 
@@ -108,18 +107,16 @@ class Buffered_KD_Tree :
 
 
 def path_from(path, node) :
-	print path
 	return_path = []
 	return_path.append(path[len(path)-1][1])
 	looking_for = (path[len(path)-1])[0]
-	print looking_for
 	for i in xrange( len(path)-1, -1, -1) :
 		if looking_for == None :
 			break
 
 		if np.array_equal(looking_for, (path[i])[1]) :
 			return_path.append((path[i])[1])
-			looking_for == (path[i])[0]
+			looking_for = (path[i])[0]
 
 
 	return return_path
@@ -164,16 +161,16 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 
 	for i in xrange(0,k) : #might change to while
 		print ""
-		print "NEW ITERATION"
+		#print "NEW ITERATION"
 		qrand = sample_cspace()
 		#while True : #this will make sure q rand is a valid point, might not be necessary
 		#	if Point_Collision_Check(qrand) :
 		#		break
 		#	qrand = sample_cspace()
 
-		print "QRAND"
-		print qrand
-		print "-----"
+		#print "QRAND"
+		#print qrand
+		#print "-----"
 		
 		#qrand is a valid point, now let's find the nearest neighbor,qnear
 		qnear = None
@@ -182,17 +179,17 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 		else : #work from beginning
 			qnear = Ta.Nearest_Neighbor(qrand)
 
-		print "QNEAR"
-		print qnear
-		print "-----"
+		#print "QNEAR"
+		#print qnear
+		#print "-----"
 
 		#then take a step toward it to make qnew
 		to_vec = np.linalg.norm(qrand - qnear)
 
 		qnew = qnear + ((qrand-qnear)/to_vec * delta)
-		print "QNEW:"
-		print qnew
-		print "-----"
+		#print "QNEW:"
+		#print qnew
+		#print "-----"
 		#do collision check between qnew and qnear
 		if Line_Collision_Check(qnear,qnew) :
 
@@ -202,9 +199,9 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 				Tb.insert(qnew)
 				path_b.append((qnear,qnew))
 				nearest_solution = Ta.Nearest_Neighbor(qnew)
-				print "NEAREST SOLUTION"
-				print nearest_solution
-				print "-----"
+				#print "NEAREST SOLUTION"
+				#print nearest_solution
+				#print "-----"
 				
 				end_distance = distance.euclidean(qnew, nearest_solution)
 				print "Distance to Solution"
@@ -223,9 +220,7 @@ def RRT_Connect_Planner(qinit, qgoal,k) :
 				Ta.insert(qnew)
 				path_a.append((qnear,qnew))
 				nearest_solution = Tb.Nearest_Neighbor(qnew)
-				print "NEAREST SOLUTION"
-				print nearest_solution
-				print "-----"
+				
 				end_distance = distance.euclidean(qnew, nearest_solution)
 				print "Distance to Solution"
 				print end_distance
@@ -250,6 +245,17 @@ def test() :
 
 	path = RRT_Connect_Planner(qi, qf, 10000)
 	print path
+	pathx = []
+	pathy = []
+	for i in xrange(0, len(path)) :
+		pathx.append((path[i])[0])
+		pathy.append((path[i])[1])
+
+	import matplotlib.pyplot as plt
+	plt.plot(pathx, pathy, 'ro')
+	plt.axis([0, 10, 0, 10])
+	plt.show()
+
 	if path != [] :
 		print "Simplifying path"
 		path = simplify_path(path, 1000)
