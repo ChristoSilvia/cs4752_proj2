@@ -113,22 +113,21 @@ def plane_trajCb(plane_traj_msg):
         V = np.append(V, [wv], axis=0)
         velocities.append(Vector3(wv[0],wv[1],wv[2]))
 
-    # print "#################################"
-    # print "plane_traj_msg"
-    # print "len(times): %d" % len(plane_traj_msg.times)
-    # print "len(positions): %d" % len(positions)
-    # print "len(velocities): %d" % len(velocities)
-    # print "shapes:"
-    # print T.shape
-    # print P.shape
-    # print V.shape
+    print "############### Recieved plane_traj_msg ##################"
+    print "len(times): %d" % len(plane_traj_msg.times)
+    print "len(positions): %d" % len(positions)
+    print "len(velocities): %d" % len(velocities)
+    print "shapes:"
+    print T.shape
+    print P.shape
+    print V.shape
     # print "################ T #################"
     # print T
     # print "################ P #################"
     # print P
     # print "################ V #################"
     # print V
-    # print "#################################"
+    print "##########################################################"
 
     loginfo("Making position call")
     initial_position = position_server().position
@@ -159,7 +158,7 @@ def controller():
 
     rospy.Subscriber("/plane_traj", Trajectory, plane_trajCb, queue_size=10000)
 
-    rospy.spin()
+    # rospy.spin()
 
 if __name__ == '__main__':
     controller()
