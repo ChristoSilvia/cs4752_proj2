@@ -10,6 +10,7 @@ from baxter_pykdl import baxter_kinematics
 from tf.transformations import *
 from copy import deepcopy
 import random
+from collision_checker.srv import CheckCollision
 
 
 
@@ -27,20 +28,13 @@ def sample_cspace():
 	r = np.zeros(7)
 	for i in xrange(0,7) :
 		r[i] = temp[i]
-	return r#sample_3d()
-def sample_3d() :
+	return r#sample_2d()
+
+def sample_2d() :
 	r = np.zeros(2)
 	r[0] = np.random.rand(1)*5
 	r[1] = np.random.rand(1)*5
 	return r
-
-#use the course staff collision checks here
-def Point_Collision_Check(point) :
-	return True
-
-def Line_Collision_Check(p1,p2) :
-	return True
-
 
 class Buffered_KD_Tree :
 	def __init__(self, qinit, k) :
@@ -105,12 +99,18 @@ class Buffered_KD_Tree :
 		return closest_point
 
 
-
+#need to repair the looking_for TODO
 def path_from(path, node) :
 	return_path = []
-	return_path.append(path[len(path)-1][1])
-	looking_for = (path[len(path)-1])[0]
-	for i in xrange( len(path)-1, -1, -1) :
+	return_path.append(node)
+
+	ind = len(path)-1
+	
+	while not np.array_equal((path[ind])[1], node)
+		ind = ind - 1
+	looking_for = (path[ind])[0]
+
+	for i in xrange( ind, -1, -1) :
 		if looking_for == None :
 			break
 
@@ -146,93 +146,157 @@ def simplify_path(path, n) :
 
 	return path
 
+def PointLerp(p1, p2, delta) :
+	dist = np.linalg.norm(p2 - p1)
+	if dist <= delta :
+		return p2
+	return p1 + ((p2-p1)/dist * delta)
 
-def RRT_Connect_Planner(qinit, qgoal,k) :
 
-	Ta = Buffered_KD_Tree(qinit, 20)
-	path_a = []
-	path_a.append((None,qinit))
+class rrt_node :
+	def __init__(self) :
+		rospy.init_node('rrt_node')
+        baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
-	Tb = Buffered_KD_Tree(qgoal, 20)
-	path_b = []
-	path_b.append((None,qgoal))
+        self.limb = 'left'
+        self.hand_pose = None
 
-	delta = .1 #delta step to random point
+		loginfo("Initialized /check collision")
+        self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+        loginfo("Initialized /check collision")
 
-	for i in xrange(0,k) : #might change to while
-		print ""
-		#print "NEW ITERATION"
-		qrand = sample_cspace()
-		#while True : #this will make sure q rand is a valid point, might not be necessary
-		#	if Point_Collision_Check(qrand) :
-		#		break
-		#	qrand = sample_cspace()
+        #will endlessly take its current position and try to move to a random position
+        #while avoiding all obstacles
+        while True :
+	       	arm = Limb(self.limb)
+	       	angle_dict = arm.joint_angles()
+	       	joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+	       	qi = np.zeros(7)
+	       	for i in xrange(0,7) :
+	       		qi[i] = angle_dict[joints[i]]
 
-		#print "QRAND"
-		#print qrand
-		#print "-----"
-		
-		#qrand is a valid point, now let's find the nearest neighbor,qnear
-		qnear = None
-		if i%2 == 1: #work from end
-			qnear = Tb.Nearest_Neighbor(qrand)
-		else : #work from beginning
-			qnear = Ta.Nearest_Neighbor(qrand)
+	       	qf = sample_cspace()
 
-		#print "QNEAR"
-		#print qnear
-		#print "-----"
+	        path = self.RRT_Connect_Planner(qi, qf, 10000000)
+	        path = simplify_path(path, len(path)/2)
+	        self.MoveAlongPath(path)
 
-		#then take a step toward it to make qnew
-		to_vec = np.linalg.norm(qrand - qnear)
+        rospy.spin()
 
-		qnew = qnear + ((qrand-qnear)/to_vec * delta)
-		#print "QNEW:"
-		#print qnew
-		#print "-----"
-		#do collision check between qnew and qnear
-		if Line_Collision_Check(qnear,qnew) :
+    def MoveAlongPath(self, path) :
+    	arm = Limb(self.limb)
+    	joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+    	for p in path :
+    		this_p = {}
+    		for i in xrange(0,7) :
+    			this_p[joints[i]] = p[i]
+    		arm.set_joint_positions(this_p)
 
-			#valid so add to tree
+    def Check_Point(self, p) :
+    	collision_check_req = CheckCollisionRequest()
+    	collision_check_req.arm = 'left'
+    	collision_check_req.config = list(p)
+    	return self.collision_checker(collision_check_req)
 
-			if i%2 == 1 : #add to end
-				Tb.insert(qnew)
-				path_b.append((qnear,qnew))
-				nearest_solution = Ta.Nearest_Neighbor(qnew)
-				#print "NEAREST SOLUTION"
-				#print nearest_solution
-				#print "-----"
-				
-				end_distance = distance.euclidean(qnew, nearest_solution)
-				print "Distance to Solution"
-				print end_distance
-				#check if qnear is close enough to opposite tree
-				if end_distance <= .05 and Line_Collision_Check(nearest_solution,qnew) :
-					#the trees can reach each other to create the path
-					atohere = path_from(path_a, nearest_solution).reverse()
-					heretob = path_from(path_b, qnew)
-					if atohere == [] or atohere == None:
-						return heretob
-					return atohere.append(heretob)
-				
-			#do opposite as above for this case
-			else :
-				Ta.insert(qnew)
-				path_a.append((qnear,qnew))
-				nearest_solution = Tb.Nearest_Neighbor(qnew)
-				
-				end_distance = distance.euclidean(qnew, nearest_solution)
-				print "Distance to Solution"
-				print end_distance
-				if end_distance <= .05 and Line_Collision_Check(nearest_solution,qnew) :
-					atohere = path_from(path_a,qnew).reverse()
-					heretob = path_from(path_b,nearest_solution)
-					if atohere == [] or atohere == None:
-						return heretob
-					return atohere.append(heretob)
+    def Check_Line(self, p1, p2) :
+    	if not self.Check_Point(p2) :
+    		return False
 
-	print "Failed to find path in k steps"
-	return []
+    	p = p1
+    	while not np.array_equal(p, p2) :
+    		if not self.Check_Point(p) :
+    			return False
+
+    		#point lerp is less efficient than possible because i am finding the vector between them 
+    		#during each call	
+    		p = PointLerp(p, p2, .1) #roughly 6 degrees of rotation total
+    	return True
+
+    #given an initial and final array of joints, it will find a path to there
+	#avoiding any singularities and obstacles
+	def RRT_Connect_Planner(self, qinit, qgoal,k) :
+
+		Ta = Buffered_KD_Tree(qinit, 20)
+		path_a = []
+		path_a.append((None,qinit))
+
+		Tb = Buffered_KD_Tree(qgoal, 20)
+		path_b = []
+		path_b.append((None,qgoal))
+
+		delta = .15 #delta step to random point
+
+		for i in xrange(0,k) : #might change to while
+			print ""
+			#print "NEW ITERATION"
+			qrand = sample_cspace()
+
+			#print "QRAND"
+			#print qrand
+			#print "-----"
+			
+			#qrand is a valid point, now let's find the nearest neighbor,qnear
+			qnear = None
+			if i%2 == 1: #work from end
+				qnear = Tb.Nearest_Neighbor(qrand)
+			else : #work from beginning
+				qnear = Ta.Nearest_Neighbor(qrand)
+
+			#print "QNEAR"
+			#print qnear
+			#print "-----"
+
+			#then take a step toward it to make qnew
+			#to_vec = np.linalg.norm(qrand - qnear)
+			#qnew = qnear + ((qrand-qnear)/to_vec * delta)
+			
+			qnew = PointLerp(qnear, qrand, delta)
+			#print "QNEW:"
+			#print qnew
+			#print "-----"
+			#do collision check between qnew and qnear
+			if self.Check_Line(qnear,qnew) :
+
+				#valid so add to tree
+
+				if i%2 == 1 : #add to end
+					Tb.insert(qnew)
+					path_b.append((qnear,qnew))
+					nearest_solution = Ta.Nearest_Neighbor(qnew)
+					#print "NEAREST SOLUTION"
+					#print nearest_solution
+					#print "-----"
+					
+					end_distance = distance.euclidean(qnew, nearest_solution)
+					print "Distance to Solution"
+					print end_distance
+					#check if qnear is close enough to opposite tree
+					if self.Check_Line(nearest_solution,qnew) :
+						#the trees can reach each other to create the path
+						atohere = path_from(path_a, nearest_solution).reverse()
+						heretob = path_from(path_b, qnew)
+						if atohere == [] or atohere == None:
+							return heretob
+						return atohere.append(heretob)
+					
+				#do opposite as above for this case
+				else :
+					Ta.insert(qnew)
+					path_a.append((qnear,qnew))
+					nearest_solution = Tb.Nearest_Neighbor(qnew)
+					
+					end_distance = distance.euclidean(qnew, nearest_solution)
+					print "Distance to Solution"
+					print end_distance
+					if self.Check_Line(nearest_solution,qnew) :
+						atohere = path_from(path_a, qnew).reverse()
+						heretob = path_from(path_b,nearest_solution)
+						if atohere == [] or atohere == None:
+							return heretob
+						return atohere.append(heretob)
+
+		print "Failed to find path in k steps"
+		return []
 
 
 
