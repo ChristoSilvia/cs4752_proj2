@@ -12,10 +12,12 @@ curr_pos = [0.0,0.0]
 curr_vel = [0.0,0.0]
 plane_traj_msg = Trajectory()
 time = 0
-time_per_unit = .2
-pts_per_unit = 20
+meters_per_second = .03/1.0
+pts_per_meter = .3
+meters_per_unit = .1/66.6
 min_pts = 5
-font_size_per_meter = 100.0/0.015
+time_between = .05
+# font_size_per_meter = 100.0/0.015
 scale = 1
 
 def loginfo(logstring):
@@ -32,11 +34,11 @@ def bezier_quadratic_dt(A, B, C, t):
 	dy = 2*(1 - t) * (B[1]-A[1]) + 2*t * (C[1]-B[1])
 	return dx, dy
 
-def bezier_quadratic_length(A, B, C):
+def bezier_quadratic_length(A, B, C, ti=0.0, tf=1.0):
 	def dx(t): return 2*(1 - t) * (B[0]-A[0]) + 2*t * (C[0]-B[0])
 	def dy(t): return 2*(1 - t) * (B[1]-A[1]) + 2*t * (C[1]-B[1])
 	def ds(s): return np.sqrt(dx(s)**2+dy(s)**2)
-	length, err = quad(ds, 0.0, 1.0)
+	length, err = quad(ds, ti, tf)
 	return length
 
 def bezier_quadratic_ddt(A, B, C, t):	
@@ -55,11 +57,11 @@ def bezier_cubic_dt(A, B, C, D, t):
 	dy = 3*(1-t)**2*(B[1]-A[1]) + 6*(1-t)*t*(C[1]-B[1]) + 3*t**2*(D[1]-C[1])
 	return dx, dy
 
-def bezier_cubic_length(A, B, C, D):
+def bezier_cubic_length(A, B, C, D, ti=0.0, tf=1.0):
 	def dx(t): return 3*(1-t)**2*(B[0]-A[0]) + 6*(1-t)*t*(C[0]-B[0]) + 3*t**2*(D[0]-C[0])
 	def dy(t): return 3*(1-t)**2*(B[1]-A[1]) + 6*(1-t)*t*(C[1]-B[1]) + 3*t**2*(D[1]-C[1])
 	def ds(s): return np.sqrt(dx(s)**2+dy(s)**2)
-	length, err = quad(ds, 0.0, 1.0)
+	length, err = quad(ds, ti, tf)
 	return length
 
 def bezier_cubic_ddt(A, B, C, D, t):
@@ -83,7 +85,7 @@ def linear_ddt(A, B, t):
 	return ddx, ddy
 
 def pathCb(path):
-	global curr_pos, curr_vel, time, fig, ax, time_per_unit
+	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
 	# print "Got Path!"
 	# print path
 
@@ -99,12 +101,12 @@ def pathCb(path):
 		return
 
 	if (path.type == "S"):
-		# set fontsize
-		scale = (path.x/font_size_per_meter)
-		# print "$$$$$$$$$$$$$$$$$$$$$$$$$$"
-		# print "scale:"
-		# print scale
-		# print "$$$$$$$$$$$$$$$$$$$$$$$$$$"
+		# set speed
+		meters_per_second = path.x
+		print "$$$$$$$$$$$$$$$$$$$$$$$$$$"
+		print "meters_per_second:"
+		print meters_per_second
+		print "$$$$$$$$$$$$$$$$$$$$$$$$$$"
 		return
 
 	if (path.type == "C"):
@@ -114,17 +116,13 @@ def pathCb(path):
 		p2 = [path.x2,path.y2]
 		p3 = [path.x,path.y]
 
-		seg_length = bezier_cubic_length(p0, p1, p2, p3)
-		# print "#################################"
-		# print "seg_length"
-		# print seg_length
-		# print "#################################"
-
 		#Setup the parameterisation
-		# seg_length = np.linalg.norm(np.array(p0)-np.array(p1))
-		# seg_length += np.linalg.norm(np.array(p1)-np.array(p2))
-		# seg_length += np.linalg.norm(np.array(p2)-np.array(p3))
-		num_points = int(seg_length*pts_per_unit)
+		seg_length = bezier_cubic_length(p0, p1, p2, p3)
+		# print "$$$$$$$$$$$$$$$$$$$$$$$$$$"
+		# print "seg_length:"
+		# print seg_length
+		# print "$$$$$$$$$$$$$$$$$$$$$$$$$$"
+		num_points = int(seg_length*meters_per_unit*pts_per_meter)
 		if num_points < min_pts: num_points = min_pts
 		t = sp.linspace(0,1,num_points)
 
@@ -141,21 +139,45 @@ def pathCb(path):
 
 		continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
 
-
-		# add the acceleration (Bddx,Bddy) ??
-		# Bddx, Bddy = bezier_cubic_ddt(p0, p1, p2, p3, t)
-		
-
 		#Plot the Bezier curve
 		ax.plot(Bx, By, "k")
 
 		# Add to trajectory msg
-		P = [Bx,By]
-		V = [Bdx,Bdy]
+		P = np.array([Bx,By])
+		V = np.array([Bdx,Bdy])
 		# A = [Bddx,Bddy]
-		duration = seg_length*time_per_unit
-		t = [(x*duration)+time for x in t]
-		add_to_plane_traj_msg(P,V,t)
+
+		# may be wrong? figure out length of each segment, dont assume all are equal
+		duration = seg_length*meters_per_unit*(1.0/meters_per_second)
+
+		# t = [(x*duration)+time for x in t]
+		times = []
+		# prevTime = time
+		# prev_t = 0.0
+
+		# allow time to stop if not continuous path
+		if not continuous:			
+			P = np.insert(P,(0),P[:,0],axis=1)
+			V = np.insert(V,0,[0.0,0.0],axis=1)
+			time += time_between/2.0
+			times.append(time)
+			time += time_between/2.0
+
+		seconds_per_unit = meters_per_unit*(1.0/meters_per_second)
+		for curr_t in t:
+			dt = bezier_cubic_length(p0, p1, p2, p3, ti=0.0, tf=curr_t)*seconds_per_unit
+			# print "*********************************"
+			# print "dt"
+			# print dt
+			# print "*********************************"
+			# if not (curr_t == 0 and time != 0):
+			times.append(time + dt)
+			# prevTime += bezier_cubic_length(p0, p1, p2, p3, ti=prev_t, tf=i)*seconds_per_unit
+			# times.append(prevTime)
+			# prev_t = i
+
+
+		add_to_plane_traj_msg(P,V,times)
 		time += duration
 
 	elif (path.type == "Q"):
@@ -164,12 +186,9 @@ def pathCb(path):
 		p1 = [path.x1,path.y1]
 		p3 = [path.x,path.y]
 
-		seg_length = bezier_quadratic_length(p0, p1, p3)
-
 		#Setup the parameterisation
-		# seg_length = np.linalg.norm(np.array(p0)-np.array(p1))
-		# seg_length += np.linalg.norm(np.array(p1)-np.array(p3))
-		num_points = int(seg_length*pts_per_unit)
+		seg_length = bezier_quadratic_length(p0, p1, p3)
+		num_points = int(seg_length*meters_per_unit*pts_per_meter)
 		if num_points < min_pts: num_points = min_pts
 		t = sp.linspace(0,1,num_points)
 		
@@ -186,20 +205,39 @@ def pathCb(path):
 
 		continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
 
-		# add the acceleration (Bddx,Bddy) ??
-		# Bddx, Bddy = bezier_quadratic_ddt(p0, p1, p3, t)
-
-
 		#Plot the Bezier curve
 		ax.plot(Bx, By, "k")
 
 		# Add to trajectory msg
-		P = [Bx,By]
-		V = [Bdx,Bdy]
+		P = np.array([Bx,By])
+		V = np.array([Bdx,Bdy])
 		# A = [Bddx,Bddy]
-		duration = seg_length*time_per_unit
-		t = [(x*duration)+time for x in t]
-		add_to_plane_traj_msg(P,V,t)
+		
+		duration = seg_length*meters_per_unit*(1.0/meters_per_second)
+
+		# t = [(x*duration)+time for x in t]
+		times = []
+		# prevTime = time
+		# prev_t = 0.0
+
+		# allow time to stop if not continuous path
+		if not continuous:
+			P = np.insert(P,(0),P[:,0],axis=1)
+			V = np.insert(V,0,[0.0,0.0],axis=1)
+			
+			time += time_between/2.0
+			times.append(time)
+			time += time_between/2.0
+
+		
+		seconds_per_unit = meters_per_unit*(1.0/meters_per_second)
+		for curr_t in t:
+			times.append(time + bezier_quadratic_length(p0, p1, p3, ti=0.0, tf=curr_t)*seconds_per_unit)
+			# prevTime += bezier_quadratic_length(p0, p1, p3, prev_t, i)*seconds_per_unit
+			# times.append(prevTime)
+			# prev_t = i
+		
+		add_to_plane_traj_msg(P,V,times)
 		time += duration
 
 	elif (path.type == "L"):
@@ -209,7 +247,7 @@ def pathCb(path):
 
 		#Setup the parameterisation
 		seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
-		num_points = int(seg_length*pts_per_unit)
+		num_points = int(seg_length*meters_per_unit*pts_per_meter)
 		if num_points < min_pts: num_points = min_pts
 		t = sp.linspace(0,1,num_points)
 
@@ -264,19 +302,30 @@ def pathCb(path):
 		# or really just parametric equations in [x,y]
 		# given a spline, and a constant velocity, follow the curve
 
-
-		# add the acceleration (Bddx,Bddy) ??
-		# Bddx, Bddy = linear_ddt(p0, p3, t)
-
 		#Plot the Line
 		ax.plot(Bx, By, "k")
 
 		# Add to trajectory msg
-		P = [Bx,By]
-		V = [Bdx,Bdy]
+		P = np.array([Bx,By])
+		V = np.array([Bdx,Bdy])
 		# A = [Bddx,Bddy]
-		duration = seg_length*time_per_unit # might not be good for long straight lines
+		duration = seg_length*meters_per_unit*(1.0/meters_per_second)
+
+		if not continuous:
+			time += time_between
+		
 		t = [(x*duration)+time for x in t]
+		# allow time to stop if not continuous path
+		if not continuous:
+			P = np.insert(P,(0),P[:,0],axis=1)
+			V = np.insert(V,0,[0.0,0.0],axis=1)
+			time -= time_between/2.0
+			np.insert(t,0,time)
+			time += time_between/2.0
+
+		
+
+
 		add_to_plane_traj_msg(P,V,t)
 		time += duration
 
@@ -320,20 +369,28 @@ def is_continuous(p0,dxi,dyi,dxf,dyf):
 	tolerence = .25
 	not_continuous = np.linalg.norm(old_vel) == 0.0 or 1-vel_diff > tolerence
 	if(not_continuous):
-		print "#################################"
+		print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
 		print "Not continuous at {0}".format(p0)
-		print "#################################"
+		print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
 
 	curr_vel = [dxf,dyf]
 	return not not_continuous
 
 def add_to_plane_traj_msg(P,V,t):
 	""" P = position, V = velocitiy, A = acceleration t = time (sec)"""
-	global plane_traj_msg, scale
+	global plane_traj_msg, meters_per_unit, meters_per_second
 
-	P = np.array(P).T*scale
-	V = np.array(V).T*scale
-	# A = np.array(A).T*scale
+	# scale position
+	P = P.T*meters_per_unit
+
+	# normalize velocity then scale to desired speed
+	V = V.T
+	V /= np.linalg.norm(V, axis=-1)[:, np.newaxis]
+	V[np.isnan(V) | np.isinf(V)]=0
+	V *= meters_per_second
+
+	# A = np.array(A).T
+
 	r, c = P.shape
 
 	# print "##################################"
