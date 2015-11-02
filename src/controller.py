@@ -9,6 +9,7 @@ from geometry_msgs.msg import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
+import tf
 from tf.transformations import *
 
 global left, plane_norm, plane_rotation
@@ -17,14 +18,14 @@ def loginfo(logstring):
     rospy.loginfo("Controller: {0}".format(logstring))
 
 def calibrate_plane():
-    global left, plane_norm, plane_rotation, plane_translation
+    global plane_norm, plane_rotation, plane_translation
 
     point_count = 0
     point_pos = []
     while point_count < 3 :
         prompt = "Press Enter when Arm is on the %d plane point" % point_count
         cmd = raw_input(prompt)
-        point_pos.append(np.array(left.endpoint_pose()['position']))
+        point_pos.append(get_tool_pos())
         # print point_pos[point_count]
         point_count += 1
 
@@ -48,10 +49,24 @@ def calibrate_plane():
     print "#################################"
     print "Finished Calibrating Plane"
     print "plane_translation"
-    print plane_translation
+    print translation_from_matrix(plane_translation)
     print "plane_rotation"
-    print plane_rotation
+    print euler_from_matrix(plane_rotation)
     print "#################################"
+
+    
+
+def get_tool_pos():
+    global tool_position_server
+    tool_vec = tool_position_server().position
+    tool = np.array([tool_vec.x,tool_vec.y,tool_vec.z])
+    # print "******************************************"
+    # print "tool"
+    # print tool
+    # print "******************************************"
+    return tool
+
+
 
 def matrix_from_euler(r,p,y,radians=False):
     if not radians:
@@ -85,6 +100,12 @@ def PlaneToBasePoint(plane_x,plane_y):
 
 def PlaneToBaseDir(plane_x,plane_y):
     global plane_rotation
+
+    try:
+        plane_rotation
+    except NameError:
+        plane_rotation = np.identity(4)
+        # plane_rotation = matrix_from_euler(-45,0,0)
 
     plane_dir = np.array([plane_x,plane_y,0,1])
     base_dir = np.dot(plane_rotation, plane_dir.T)
@@ -137,7 +158,7 @@ def plane_trajCb(plane_traj_msg):
 
 
 def controller():
-    global joint_action_server, left, left_kin, tool_trajectory, position_server
+    global joint_action_server, left, left_kin, tool_trajectory, position_server, tool_position_server
     rospy.init_node('controller')
     loginfo("Initialized node Controller")
     
@@ -153,10 +174,36 @@ def controller():
     rospy.wait_for_service("/end_effector_position")
     position_server = rospy.ServiceProxy("/end_effector_position", EndEffectorPosition)
     loginfo("Initialized position server proxy")
+    rospy.wait_for_service("/tool_position")
+    tool_position_server = rospy.ServiceProxy("/tool_position", EndEffectorPosition)
+    loginfo("Initialized tool_position server proxy")
 
     calibrate_plane()
 
     rospy.Subscriber("/plane_traj", Trajectory, plane_trajCb, queue_size=10000)
+
+
+    rate = rospy.Rate(30)
+    br = tf.TransformBroadcaster()
+    while not rospy.is_shutdown():
+        global plane_rotation, plane_translation
+
+        try:
+            plane_translation
+            plane_rotation
+        except NameError:
+            plane_translation = np.identity(4)
+            plane_rotation = np.identity(4)
+            # plane_rotation = matrix_from_euler(-45,0,0)
+        
+        br.sendTransform(
+            translation_from_matrix(plane_translation), 
+            quaternion_from_matrix(plane_rotation),
+            rospy.Time.now(), 
+            "plane_frame", 
+            "base")
+        
+        rate.sleep()
 
     # rospy.spin()
 

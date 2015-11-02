@@ -11,6 +11,7 @@ import baxter_interface
 from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
 from cs4752_proj2.srv import *
+from tf.transformations import *
 
 class JointActionServer():
     def __init__(self, limb_name='left'):
@@ -23,7 +24,7 @@ class JointActionServer():
         self.kp = 0.01
         self.ki = 0.01
         self.dt = 0.012
-        self.pen_length = 0.08
+        self.pen_length = 0.165
         self.deriv_step = 1e-5
         self.secondary_objective = False 
         
@@ -195,16 +196,23 @@ class JointActionServer():
         return times_array, x_positions_velocities, y_positions_velocities, z_positions_velocities
     
     def get_tool_offset(self):
-        np.dot(
-            quaternion_to_rotation(self.limb.endpoint_pose()['orientation']),
-            np.array([0,0,self.pen_length]))
+        off = np.dot(
+            quaternion_matrix(self.limb.endpoint_pose()['orientation']),
+            np.array([0,0,self.pen_length,1]).T)
+        off = off[:3]/off[3]
+        return off
 
     def get_tool_position_response(self, args): 
         position = self.get_position()
         offset = self.get_tool_offset()
-        return EndEffectorPositionResponse(Vector3(position[0] + offset[0],
-                                                   position[1] + offset[1],
-                                                   position[2] + offset[2]))
+        tool_pos = position + offset
+        # print "*************************************"
+        # print "offset"
+        # print offset
+        # print "*************************************"
+        return EndEffectorPositionResponse(Vector3(tool_pos[0],
+                                                   tool_pos[1],
+                                                   tool_pos[2]))
 
     def get_position_response(self, args):
         position = self.get_position()
