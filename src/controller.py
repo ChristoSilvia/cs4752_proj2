@@ -11,23 +11,41 @@ from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
 import tf
 from tf.transformations import *
+from copy import deepcopy
 
 global left, plane_norm, plane_rotation
 
 def loginfo(logstring):
     rospy.loginfo("Controller: {0}".format(logstring))
 
+##create a PointStamped message
+def create_point_stamped(pt, frame_id = 'base'):
+    global point_publisher
+    m = PointStamped()
+    m.header.frame_id = frame_id
+    m.header.stamp = rospy.Time()
+    #m.header.stamp = rospy.get_rostime()
+    m.point = Point(pt[0],pt[1],pt[2])
+    point_publisher.publish(m)
+    # return m
+
 def calibrate_plane():
     global plane_norm, plane_rotation, plane_translation
 
-    point_count = 0
+    # point_count = 0
     point_pos = []
-    while point_count < 3 :
-        prompt = "Press Enter when Arm is on the %d plane point" % point_count
-        cmd = raw_input(prompt)
-        point_pos.append(get_tool_pos())
-        # print point_pos[point_count]
-        point_count += 1
+    # while point_count < 3 :
+    #     prompt = "Press Enter when Arm is on the %d plane point" % point_count
+    #     cmd = raw_input(prompt)
+    #     point_pos.append(get_tool_pos())
+    #     print point_pos[point_count]
+    #     point_count += 1
+
+    # test
+    create_point_stamped([1,1,1])
+    point_pos.append(np.array([.5,.5,-.1]))
+    point_pos.append(np.array([.5,.6,-.1]))
+    point_pos.append(np.array([.5,.5,0]))
 
     vec1 = point_pos[1] - point_pos[0]
     vec2 = point_pos[2] - point_pos[0]
@@ -38,11 +56,18 @@ def calibrate_plane():
     plane_translation[:3, 3] = plane_origin[:3]
     
     x_plane = vec1/np.linalg.norm(vec1)
-    y_plane = np.cross(vec1, plane_norm)
+    y_plane = np.cross(plane_norm, vec1)
     y_plane = y_plane/np.linalg.norm(y_plane)
     z_plane = plane_norm/np.linalg.norm(plane_norm)
     #need rotation to make norm the z vector
-    plane_rotation = np.array([x_plane, y_plane, z_plane])
+    plane_rotation = np.array([x_plane, y_plane, z_plane]).T
+
+    # print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+    # print np.linalg.det(plane_rotation)
+    # x = np.array([2,0,0])
+    # print np.dot(plane_rotation,x)
+    # print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
+
     plane_rotation = np.append(plane_rotation,[[0,0,0]],axis=0)
     plane_rotation = np.append(plane_rotation,[[0],[0],[0],[1]],axis=1)
     
@@ -51,7 +76,8 @@ def calibrate_plane():
     print "plane_translation"
     print translation_from_matrix(plane_translation)
     print "plane_rotation"
-    print euler_from_matrix(plane_rotation)
+    print plane_rotation
+    # print euler_from_matrix(plane_rotation)
     print "#################################"
 
     
@@ -62,7 +88,8 @@ def get_tool_pos():
     tool = np.array([tool_vec.x,tool_vec.y,tool_vec.z])
     # print "******************************************"
     # print "tool"
-    # print tool
+    # print tool    while point_count < 3 :
+
     # print "******************************************"
     return tool
 
@@ -121,13 +148,20 @@ def plane_trajCb(plane_traj_msg):
     P = np.zeros([0,3])
     V = np.zeros([0,3])
 
+    loginfo("Making position call")
+    initial_position = position_server().position
+    loginfo(initial_position)
+
     positions = []
     velocities = []
     for i in range(0,len(plane_traj_msg.positions)):
         pp = plane_traj_msg.positions[i]
         wp = PlaneToBasePoint(pp.x,pp.y)
         P = np.append(P, [wp], axis=0)
-        positions.append(Vector3(wp[0],wp[1],wp[2]))
+        positions.append(Vector3(
+                                wp[0]+initial_position.x,
+                                wp[1]+initial_position.y,
+                                wp[2]+initial_position.z))
 
         pv = plane_traj_msg.velocities[i]
         wv = PlaneToBaseDir(pv.x,pv.y)
@@ -142,17 +176,13 @@ def plane_trajCb(plane_traj_msg):
     print T.shape
     print P.shape
     print V.shape
-    # print "################ T #################"
-    # print T
-    # print "################ P #################"
-    # print P
-    # print "################ V #################"
-    # print V
+    print "################ T #################"
+    print T
+    print "################ P #################"
+    print P
+    print "################ V #################"
+    print V
     print "##########################################################"
-
-    loginfo("Making position call")
-    initial_position = position_server().position
-    loginfo(initial_position)
 
     joint_action_server(plane_traj_msg.times, positions, velocities) 
 
@@ -178,10 +208,12 @@ def controller():
     tool_position_server = rospy.ServiceProxy("/tool_position", EndEffectorPosition)
     loginfo("Initialized tool_position server proxy")
 
+    global point_publisher
+    point_publisher = rospy.Publisher('/test_points', PointStamped, queue_size=10)
+
     calibrate_plane()
 
     rospy.Subscriber("/plane_traj", Trajectory, plane_trajCb, queue_size=10000)
-
 
     rate = rospy.Rate(30)
     br = tf.TransformBroadcaster()

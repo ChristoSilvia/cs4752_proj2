@@ -6,6 +6,8 @@ Panels:
       Expanded:
         - /Axes1
         - /Axes2
+        - /Axes3
+        - /PointStamped1
       Splitter Ratio: 0.5
     Tree Height: 691
   - Class: rviz/Selection
@@ -303,7 +305,7 @@ Visualization Manager:
       Length: 0.1
       Name: Axes
       Radius: 0.01
-      Reference Frame: left_gripper
+      Reference Frame: left_gripper_base
       Value: true
     - Class: rviz/Axes
       Enabled: true
@@ -311,6 +313,22 @@ Visualization Manager:
       Name: Axes
       Radius: 0.05
       Reference Frame: plane_frame
+      Value: true
+    - Class: rviz/Axes
+      Enabled: true
+      Length: 1
+      Name: Axes
+      Radius: 0.1
+      Reference Frame: base
+      Value: true
+    - Alpha: 1
+      Class: rviz/PointStamped
+      Color: 204; 41; 204
+      Enabled: true
+      History Length: 3
+      Name: PointStamped
+      Radius: 0.8
+      Topic: /test_points
       Value: true
   Enabled: true
   Global Options:
@@ -336,22 +354,22 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.72427
+      Distance: 5.20935
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.525539
-        Y: 0.188987
-        Z: 0.0720563
+        X: 0.557359
+        Y: 0.063323
+        Z: 0.457215
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.425397
+      Pitch: 0.360396
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 5.72854
+      Yaw: 1.49018
     Saved: ~
 Window Geometry:
   Displays:
@@ -369,5 +387,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1215
-  X: 116
-  Y: 128
+  X: 2033
+  Y: 52
