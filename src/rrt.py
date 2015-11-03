@@ -153,9 +153,9 @@ def PointLerp(p1, p2, delta) :
 	return p1 + ((p2-p1)/dist * delta)
 
 
-class rrt_node :
+class rrt() :
 	def __init__(self) :
-		rospy.init_node('rrt_node')
+		rospy.init_node('rrt')
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
         self.limb = 'left'
@@ -176,6 +176,8 @@ class rrt_node :
 	       		qi[i] = angle_dict[joints[i]]
 
 	       	qf = sample_cspace()
+	       	while not self.Check_Point(qf) :
+	       		qf = sample_cspace()
 
 	        path = self.RRT_Connect_Planner(qi, qf, 10000000)
 	        path = simplify_path(path, len(path)/2)
@@ -326,4 +328,9 @@ def test() :
 		print path
 
 if __name__ == '__main__':
-    test()
+	try: 
+        rrt()
+    except rospy.ROSInterruptException:
+        pass
+    #test()
+    
