@@ -320,42 +320,42 @@ def send_plane_traj():
 	plane_traj_pub.publish(plane_traj_msg)
 	plane_traj_msg = Trajectory()
 
-def move_pen_to(pi,pf):
-	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
-	p0 = pi
-	p3 = pf
+# def move_pen_to(pi,pf):
+# 	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
+# 	p0 = pi
+# 	p3 = pf
 
-	z_offset = .05
-	# may want to make methods: move_line_to, move_cubic_to, move_quadratic_to
+# 	z_offset = .05
+# 	# may want to make methods: move_line_to, move_cubic_to, move_quadratic_to
 
-	#Setup the parameterisation
-	seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
-	num_points = int(seg_length*meters_per_unit*pts_per_meter)
-	if num_points < min_pts: num_points = min_pts
-	t = sp.linspace(0,1,num_points)
+# 	#Setup the parameterisation
+# 	seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
+# 	num_points = int(seg_length*meters_per_unit*pts_per_meter)
+# 	if num_points < min_pts: num_points = min_pts
+# 	t = sp.linspace(0,1,num_points)
 
-	#Use the Linear  formula
+# 	#Use the Linear  formula
 
-	# add the position (Bx,By)
-	Bx, By = linear(p0, p3, t)
+# 	# add the position (Bx,By)
+# 	Bx, By = linear(p0, p3, t)
 
-	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy = linear_dt(p0, p3, t)
+# 	# add the velocity (Bdx,Bdy)
+# 	Bdx, Bdy = linear_dt(p0, p3, t)
 
-	dxi, dyi = linear_dt(p0, p3, t0)
-	dxf, dyf = linear_dt(p0, p3, t1)
+# 	dxi, dyi = linear_dt(p0, p3, t0)
+# 	dxf, dyf = linear_dt(p0, p3, t1)
 
-	# Add to trajectory msg
-	P = np.array([Bx,By])
-	V = np.array([Bdx,Bdy])
+# 	# Add to trajectory msg
+# 	P = np.array([Bx,By])
+# 	V = np.array([Bdx,Bdy])
 
-	# find the duration of the curent segment at constant velocity
-	duration = seg_length*meters_per_unit/meters_per_second
+# 	# find the duration of the curent segment at constant velocity
+# 	duration = seg_length*meters_per_unit/meters_per_second
 
-	t = [(x*duration)+time for x in t]
+# 	t = [(x*duration)+time for x in t]
 
-	add_to_plane_traj_msg(P,V,t)
-	time += duration
+# 	add_to_plane_traj_msg(P,V,t)
+# 	time += duration
 	
 def bezier():
 	rospy.init_node("bezier")
