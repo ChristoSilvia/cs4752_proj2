@@ -23,50 +23,40 @@ class controller() :
         rospy.init_node('controller')
         loginfo("Initialized node Controller")
         
-        # baxter_interface.RobotEnable(CHECK_VERSION).enable()
+        baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
-        # self.left = baxter_interface.Limb('left')
-        # self.left_kin = baxter_kinematics('left')
+        self.left = baxter_interface.Limb('left')
+        self.left_kin = baxter_kinematics('left')
 
-        # rospy.wait_for_service("/move_end_effector_trajectory")
-        # self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-        # self.tool_trajectory = rospy.ServiceProxy("/move_tool_trajectory", JointAction)
-        # loginfo("Initialized Joint Action Server Proxy")
-        # rospy.wait_for_service("/end_effector_position")
-        # self.position_server = rospy.ServiceProxy("/end_effector_position", EndEffectorPosition)
-        # loginfo("Initialized position server proxy")
-        # rospy.wait_for_service("/tool_position")
-        # self.tool_position_server = rospy.ServiceProxy("/tool_position", EndEffectorPosition)
-        # loginfo("Initialized tool_position server proxy")
+        rospy.wait_for_service("/move_end_effector_trajectory")
+        self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
+        self.tool_trajectory = rospy.ServiceProxy("/move_tool_trajectory", JointAction)
+        loginfo("Initialized Joint Action Server Proxy")
+        rospy.wait_for_service("/end_effector_position")
+        self.position_server = rospy.ServiceProxy("/end_effector_position", EndEffectorPosition)
+        loginfo("Initialized position server proxy")
+        rospy.wait_for_service("/tool_position")
+        self.tool_position_server = rospy.ServiceProxy("/tool_position", EndEffectorPosition)
+        loginfo("Initialized tool_position server proxy")
 
-        # self.point_publisher = rospy.Publisher('/pt_stamped', PointStamped, queue_size=10)
-        # self.marker_array_pub = rospy.Publisher('/test_marker_array', MarkerArray, queue_size=10)
-        self.pose_publisher = rospy.Publisher('/test_pose_array', PoseArray, queue_size=10)
-        self.calib_pts = []
-
-        # self.tf_br = tf.TransformBroadcaster()
         self.tf_br = tf2_ros.TransformBroadcaster()
 
+        self.got_plane_traj = False
+        self.calibrated_plane = False
         self.calibrate_plane()
 
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
 
-
-        rate = rospy.Rate(60)
+        rate = rospy.Rate(30)
         while not rospy.is_shutdown():
-            self.sendTransform()
+            if self.got_plane_traj or self.calibrated_plane:
+                self.sendTransform()
             rate.sleep()
 
         # rospy.spin()
 
     def sendTransform(self):
-        try:
-            self.plane_translation
-            self.plane_rotation
-        except NameError:
-            self.plane_translation = np.identity(4)
-            self.plane_rotation = np.identity(4)
-            # self.plane_rotation = self.matrix_from_euler(0,0,-45)
+        self.transform_setup()        
 
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
@@ -83,120 +73,18 @@ class controller() :
         t.transform.rotation.w = q[3]
 
         self.tf_br.sendTransform(t)
-        
-        # self.tf_br.sendTransform(
-        #     translation_from_matrix(self.plane_translation), 
-        #     quaternion_from_matrix(self.plane_rotation),
-        #     rospy.Time.now(), 
-        #     "plane_frame", 
-        #     "base")
-
-    def create_point_stamped(self, pt, frame_id = 'base'):
-        m = PointStamped()
-        m.header.frame_id = frame_id
-        # m.header.stamp = rospy.Time()
-        m.header.stamp = rospy.get_rostime()
-        m.point = Point(pt[0],pt[1],pt[2])
-        self.point_publisher.publish(m)
-        # return m
-
-    def create_marker(self, pt, frame_id = "/base"):
-        # m = PointStamped()
-        # m.header.frame_id = frame_id
-        # # m.header.stamp = rospy.Time()
-        # m.header.stamp = rospy.get_rostime()
-        # m.point = Point(pt[0],pt[1],pt[2])
-        # self.point_publisher.publish(m)
-        # # return m
-
-        marker = Marker()
-
-        marker.header.frame_id = frame_id
-        marker.header.stamp = rospy.Time.now()
-
-        marker.type = marker.SPHERE
-        marker.action = marker.ADD
-
-        marker.scale.x = 0.02
-        marker.scale.y = 0.02
-        marker.scale.z = 0.02
-
-        marker.color.a = 1.0
-        marker.color.r = 1.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
-
-        marker.pose.orientation.w = 1.0
-
-        marker.pose.position = Point(pt[0],pt[1],pt[2])
-
-        return marker
-
-        # print marker.pose.position
-        # self.marker_pub.publish(marker)
-
-    def create_marker_array(self, pts, frame_id = "/base"):
-        markers = MarkerArray()
-        for pt in pts:
-            marker = self.create_marker(pt, frame_id=frame_id)
-            markers.markers.append(marker)
-        self.marker_array_pub.publish(markers)
-
-    def create_pose_array(self, pts, frame_id = "/base"):
-        poses = PoseArray()
-        poses.header.frame_id = frame_id
-        poses.header.stamp = rospy.Time.now()
-
-        for pt in pts:
-            pose = Pose()
-            pose.position = Point(pt[0],pt[1],pt[2])
-            pose.orientation.w = 1.0
-            poses.poses.append(pose)
-
-        # global pose_publisher
-        # pose_publisher.publish(poses)
-        self.pose_publisher.publish(poses)
-
 
     def calibrate_plane(self):
-        # point_count = 0
+        point_count = 0
         point_pos = []
-        # while point_count < 3 :
-        #     prompt = "Press Enter when Arm is on the %d plane point" % point_count
-        #     cmd = raw_input(prompt)
-        #     point_pos.append(self.get_tool_pos())
-        #     print point_pos[point_count]
-        #     point_count += 1
-
-        # test begin $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-        rospy.sleep(2)
-        # self.create_point_stamped([1.0,1.0,0.9])
-        # self.create_point_stamped([1.0,1.0,0.8])
-        # self.create_point_stamped([1.0,1.0,0.7])
-        # self.create_point_stamped([1.0,1.0,0.6])
-
-        # pt1 = [0.8,1.0,0.6]
-        # pt2 = [0.8,0.7,0.6]
-        # pt3 = [0.8,1.0,0.9]
-
-        pt1 = [1.0,1.0,0.6]
-        pt2 = [0.8,0.7,0.6]
-        pt3 = [.8,1.0,0.3]
-
-
-        self.calib_pts.append(pt1)
-        self.calib_pts.append(pt2)
-        self.calib_pts.append(pt3)
-        # self.create_marker_array(self.calib_pts)
-        self.create_pose_array(self.calib_pts)
-
-        # self.create_pose([1.0,1.0,0.9])
-        # self.create_pose([1.0,1.0,0.8])
-        # self.create_pose([1.0,1.0,0.7])
-        point_pos.append(np.array(pt1))
-        point_pos.append(np.array(pt2))
-        point_pos.append(np.array(pt3))
-        # test end $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+        print "Calibrating Plane"
+        print "Go left to right from pt1 to pt2 and then up to pt3"
+        while point_count < 3 :
+            prompt = "Press Enter when Arm is on the %d plane point" % point_count
+            cmd = raw_input(prompt)
+            point_pos.append(self.get_tool_pos())
+            print point_pos[point_count]
+            point_count += 1
 
         vec1 = point_pos[1] - point_pos[0]
         vec2 = point_pos[2] - point_pos[0]
@@ -204,8 +92,6 @@ class controller() :
         self.plane_norm = np.cross(vec1, vec2)
         # plane_origin = np.average(point_pos, axis=0)
         plane_origin = point_pos[0]
-
-        # go left to right from pt1 to pt2 and then up to pt3
 
         # make sure normal is pointing towards the base
         # if(np.dot(-plane_origin,self.plane_norm) < 0):
@@ -220,12 +106,6 @@ class controller() :
         #need rotation to make norm the z vector
         self.plane_rotation = np.array([x_plane, y_plane, z_plane]).T
 
-        # print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-        # print np.linalg.det(self.plane_rotation)
-        # x = np.array([2,0,0])
-        # print np.dot(self.plane_rotation,x)
-        # print "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$"
-
         self.plane_rotation = np.append(self.plane_rotation,[[0,0,0]],axis=0)
         self.plane_rotation = np.append(self.plane_rotation,[[0],[0],[0],[1]],axis=1)
         
@@ -238,20 +118,15 @@ class controller() :
         # print euler_from_matrix(self.plane_rotation)
         print "#################################"
 
+        self.calibrated_plane = True
+
         self.sendTransform()
 
-        
 
     def get_tool_pos(self):
         tool_vec = self.tool_position_server().position
         tool = np.array([tool_vec.x,tool_vec.y,tool_vec.z])
-        # print "******************************************"
-        # print "tool"
-        # print tool    while point_count < 3 :
-
-        # print "******************************************"
         return tool
-
 
 
     def matrix_from_euler(self, r,p,y,radians=False):
@@ -264,14 +139,20 @@ class controller() :
         q = quaternion_from_euler(r, p, y)
         return quaternion_matrix(q)
 
-    def PlaneToBasePoint(self, plane_x,plane_y):
+    def transform_setup(self):
         try:
             self.plane_translation
             self.plane_rotation
         except NameError:
-            self.plane_translation = np.identity(4)
+            loginfo("Making position call")
+            p = self.position_server().position
+        
+            self.plane_translation = translation_matrix([p.x,p.y,p.z])
             # self.plane_rotation = np.identity(4)
-            self.plane_rotation = self.matrix_from_euler(0,0,-45)
+            self.plane_rotation = self.matrix_from_euler(0,0,-90)
+
+    def PlaneToBasePoint(self, plane_x,plane_y):
+        self.transform_setup()
 
         M = np.dot(self.plane_translation, self.plane_rotation)
 
@@ -283,11 +164,7 @@ class controller() :
         return base_coords
 
     def PlaneToBaseDir(self, plane_x,plane_y):
-        try:
-            self.plane_rotation
-        except NameError:
-            # self.plane_rotation = np.identity(4)
-            self.plane_rotation = self.matrix_from_euler(0,0,-45)
+        self.transform_setup()
 
         plane_dir = np.array([plane_x,plane_y,0,1])
         base_dir = np.dot(self.plane_rotation, plane_dir.T)
@@ -297,13 +174,10 @@ class controller() :
         return base_dir
 
     def plane_trajCb(self, plane_traj_msg):
+        self.got_plane_traj = True
         T = np.array(plane_traj_msg.times)
         P = np.zeros([0,3])
         V = np.zeros([0,3])
-
-        loginfo("Making position call")
-        initial_position = self.position_server().position
-        loginfo(initial_position)
 
         positions = []
         velocities = []
@@ -311,10 +185,7 @@ class controller() :
             pp = plane_traj_msg.positions[i]
             wp = self.PlaneToBasePoint(pp.x,pp.y)
             P = np.append(P, [wp], axis=0)
-            positions.append(Vector3(
-                                    wp[0]+initial_position.x,
-                                    wp[1]+initial_position.y,
-                                    wp[2]+initial_position.z))
+            positions.append(Vector3(wp[0],wp[1],wp[2]))
 
             pv = plane_traj_msg.velocities[i]
             wv = self.PlaneToBaseDir(pv.x,pv.y)

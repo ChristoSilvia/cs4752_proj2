@@ -276,7 +276,7 @@ def is_continuous(p0,dxi,dyi,dxf,dyf):
 	new_vel /= np.linalg.norm(new_vel)
 	vel_diff = np.dot(old_vel,new_vel)
 
-	tolerence = .25
+	tolerence = .15
 	not_continuous = np.linalg.norm(old_vel) == 0.0 or 1-vel_diff > tolerence
 
 	curr_vel = [dxf,dyf]
@@ -297,9 +297,10 @@ def add_to_plane_traj_msg(P,V,t):
 
 	r, c = P.shape
 
+	z_offset = -.01
 	for ti in t: plane_traj_msg.times.append(ti)
 	for i in range(0,r):
-		plane_traj_msg.positions.append( Vector3( P[i,0], P[i,1], 0 ) )
+		plane_traj_msg.positions.append( Vector3( P[i,0], P[i,1], z_offset ) )
 		plane_traj_msg.velocities.append( Vector3( V[i,0], V[i,1], 0 ) )
 
 def send_plane_traj():
@@ -318,6 +319,43 @@ def send_plane_traj():
 
 	plane_traj_pub.publish(plane_traj_msg)
 	plane_traj_msg = Trajectory()
+
+def move_pen_to(pi,pf):
+	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
+	p0 = pi
+	p3 = pf
+
+	z_offset = .05
+	# may want to make methods: move_line_to, move_cubic_to, move_quadratic_to
+
+	#Setup the parameterisation
+	seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
+	num_points = int(seg_length*meters_per_unit*pts_per_meter)
+	if num_points < min_pts: num_points = min_pts
+	t = sp.linspace(0,1,num_points)
+
+	#Use the Linear  formula
+
+	# add the position (Bx,By)
+	Bx, By = linear(p0, p3, t)
+
+	# add the velocity (Bdx,Bdy)
+	Bdx, Bdy = linear_dt(p0, p3, t)
+
+	dxi, dyi = linear_dt(p0, p3, t0)
+	dxf, dyf = linear_dt(p0, p3, t1)
+
+	# Add to trajectory msg
+	P = np.array([Bx,By])
+	V = np.array([Bdx,Bdy])
+
+	# find the duration of the curent segment at constant velocity
+	duration = seg_length*meters_per_unit/meters_per_second
+
+	t = [(x*duration)+time for x in t]
+
+	add_to_plane_traj_msg(P,V,t)
+	time += duration
 	
 def bezier():
 	rospy.init_node("bezier")

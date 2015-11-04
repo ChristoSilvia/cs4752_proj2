@@ -17,6 +17,9 @@ roslaunch cs4752_proj2 typewriter.launch
 
 http://localhost:8000/typewriter.html
 
+
+For Testing:
+
 python -i ~/ros_ws/src/cs4752_proj2/src/controller.py
 
 rosrun rviz rviz -d ~/ros_ws/src/cs4752_proj2/config/plane_frame.rviz
