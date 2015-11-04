@@ -7,6 +7,7 @@ import pylab as plt
 from geometry_msgs.msg import *
 from cs4752_proj2.msg import *
 from cs4752_proj2.srv import *
+from copy import deepcopy
 
 curr_pos = [0.0,0.0]
 curr_vel = [0.0,0.0]
@@ -26,17 +27,20 @@ def bezier_quadratic(A, B, C, t):
 	"""A B and C being 2-tuples, t being a float between 0 and 1"""
 	x = (1 - t)**2 * A[0] + 2 * t * (1 - t) * B[0] + t**2 * C[0]
 	y = (1 - t)**2 * A[1] + 2 * t * (1 - t) * B[1] + t**2 * C[1]
-	return x, y
+	z = (1 - t)**2 * A[2] + 2 * t * (1 - t) * B[2] + t**2 * C[2]
+	return x, y, z
 
 def bezier_quadratic_dt(A, B, C, t):
 	dx = 2*(1 - t) * (B[0]-A[0]) + 2*t * (C[0]-B[0])
 	dy = 2*(1 - t) * (B[1]-A[1]) + 2*t * (C[1]-B[1])
-	return dx, dy
+	dz = 2*(1 - t) * (B[2]-A[2]) + 2*t * (C[2]-B[2])
+	return dx, dy, dz
 
 def bezier_quadratic_length(A, B, C, ti=0.0, tf=1.0):
 	def dx(t): return 2*(1 - t) * (B[0]-A[0]) + 2*t * (C[0]-B[0])
 	def dy(t): return 2*(1 - t) * (B[1]-A[1]) + 2*t * (C[1]-B[1])
-	def ds(s): return np.sqrt(dx(s)**2+dy(s)**2)
+	def dz(t): return 2*(1 - t) * (B[2]-A[2]) + 2*t * (C[2]-B[2])
+	def ds(s): return np.sqrt(dx(s)**2+dy(s)**2+dz(s)**2)
 	length, err = quad(ds, ti, tf)
 	return length
 
@@ -44,37 +48,205 @@ def bezier_cubic(A, B, C, D, t):
 	"""A B C and D being 2-tuples, t being a float between 0 and 1"""
 	x = (1-t)**3*A[0] + 3*(1-t)**2*t*B[0] + 3*(1-t)*t**2*C[0] + t**3*D[0]
 	y = (1-t)**3*A[1] + 3*(1-t)**2*t*B[1] + 3*(1-t)*t**2*C[1] + t**3*D[1]
-	return x, y
+	z = (1-t)**3*A[2] + 3*(1-t)**2*t*B[2] + 3*(1-t)*t**2*C[2] + t**3*D[2]
+	return x, y, z
 
 def bezier_cubic_dt(A, B, C, D, t):
 	dx = 3*(1-t)**2*(B[0]-A[0]) + 6*(1-t)*t*(C[0]-B[0]) + 3*t**2*(D[0]-C[0])
 	dy = 3*(1-t)**2*(B[1]-A[1]) + 6*(1-t)*t*(C[1]-B[1]) + 3*t**2*(D[1]-C[1])
-	return dx, dy
+	dz = 3*(1-t)**2*(B[2]-A[2]) + 6*(1-t)*t*(C[2]-B[2]) + 3*t**2*(D[2]-C[2])
+	return dx, dy, dz
 
 def bezier_cubic_length(A, B, C, D, ti=0.0, tf=1.0):
 	def dx(t): return 3*(1-t)**2*(B[0]-A[0]) + 6*(1-t)*t*(C[0]-B[0]) + 3*t**2*(D[0]-C[0])
 	def dy(t): return 3*(1-t)**2*(B[1]-A[1]) + 6*(1-t)*t*(C[1]-B[1]) + 3*t**2*(D[1]-C[1])
-	def ds(s): return np.sqrt(dx(s)**2+dy(s)**2)
+	def dz(t): return 3*(1-t)**2*(B[2]-A[2]) + 6*(1-t)*t*(C[2]-B[2]) + 3*t**2*(D[2]-C[2])
+	def ds(s): return np.sqrt(dx(s)**2+dy(s)**2+dz(s)**2)
 	length, err = quad(ds, ti, tf)
 	return length
 
 def linear(A, B, t):
 	x = (1-t)*A[0] + t*B[0]
 	y = (1-t)*A[1] + t*B[1]
-	return x, y
+	z = (1-t)*A[2] + t*B[2]
+	return x, y, z
 
 def linear_dt(A, B, t):
 	dx = [B[0] - A[0] for i in t]
 	dy = [B[1] - A[1] for i in t]
-	return dx, dy
+	dz = [B[2] - A[2] for i in t]
+	return dx, dy, dz
+
+def draw_cubic_bezier(p0,p1,p2,p3):
+	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
+	t0 = sp.linspace(0,0,1)
+	t1 = sp.linspace(1,1,1)
+
+	# draw cubic bezier curve
+	
+	#Setup the parameterisation
+	seg_length = bezier_cubic_length(p0, p1, p2, p3)
+	num_points = int(seg_length*meters_per_unit*pts_per_meter)
+	if num_points < min_pts: num_points = min_pts
+	t = sp.linspace(0,1,num_points)
+
+	#Use the Cubic Bezier formula
+
+	# add the position (Bx,By)
+	Bx, By, Bz = bezier_cubic(p0, p1, p2, p3, t)
+
+	# add the velocity (Bdx,Bdy)
+	Bdx, Bdy, Bdz = bezier_cubic_dt(p0, p1, p2, p3, t)
+
+	dxi, dyi, dzi = bezier_cubic_dt(p0, p1, p2, p3, t0)
+	dxf, dyf, dzf = bezier_cubic_dt(p0, p1, p2, p3, t1)
+
+	continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
+
+	#Plot the Bezier curve
+	ax.plot(Bx, By, "k")
+
+	# Add to trajectory msg
+	P = np.array([Bx,By,Bz])
+	V = np.array([Bdx,Bdy,Bdz])
+
+	# find the duration of the curent segment at constant velocity
+	duration = seg_length*meters_per_unit/meters_per_second
+
+	times = []
+
+	# allow time to stop if not continuous path
+	if not continuous:			
+		P = np.insert(P,0,P[:,0],axis=1)
+		V = np.insert(V,0,[0.0,0.0],axis=1)
+		time += time_between/2.0
+		times.append(time)
+		time += time_between/2.0
+
+	# find the duration of a piece of the segment at constant velocity
+	seconds_per_unit = meters_per_unit/meters_per_second
+	for curr_t in t:
+		dt = bezier_cubic_length(p0, p1, p2, p3, ti=0.0, tf=curr_t)*seconds_per_unit
+		times.append(time + dt)
+
+	add_to_plane_traj_msg(P,V,times)
+	time += duration
+
+def draw_quadratic_bezier(p0,p1,p3):
+	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
+	t0 = sp.linspace(0,0,1)
+	t1 = sp.linspace(1,1,1)
+
+	# draw quadratic bezier curve
+
+	#Setup the parameterisation
+	seg_length = bezier_quadratic_length(p0, p1, p3)
+	num_points = int(seg_length*meters_per_unit*pts_per_meter)
+	if num_points < min_pts: num_points = min_pts
+	t = sp.linspace(0,1,num_points)
+	
+	#Use the Quadratic Bezier formula
+
+	# add the position (Bx,By)
+	Bx, By, Bz = bezier_quadratic(p0, p1, p3, t)
+
+	# add the velocity (Bdx,Bdy)
+	Bdx, Bdy, Bdz = bezier_quadratic_dt(p0, p1, p3, t)
+
+	dxi, dyi, dzi = bezier_quadratic_dt(p0, p1, p3, t0)
+	dxf, dyf, dzf = bezier_quadratic_dt(p0, p1, p3, t1)
+
+	continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
+
+	#Plot the Bezier curve
+	ax.plot(Bx, By, "k")
+
+	# Add to trajectory msg
+	P = np.array([Bx,By,Bz])
+	V = np.array([Bdx,Bdy,Bdz])
+	
+	# find the duration of the curent segment at constant velocity
+	duration = seg_length*meters_per_unit/meters_per_second
+
+	times = []
+
+	# allow time to stop if not continuous path
+	if not continuous:
+		P = np.insert(P,0,P[:,0],axis=1)
+		V = np.insert(V,0,[0.0,0.0],axis=1)
+		
+		time += time_between/2.0
+		times.append(time)
+		time += time_between/2.0
+
+	# find the duration of a piece of the segment at constant velocity
+	seconds_per_unit = meters_per_unit/meters_per_second
+	for curr_t in t:
+		times.append(time + bezier_quadratic_length(p0, p1, p3, ti=0.0, tf=curr_t)*seconds_per_unit)
+	
+	add_to_plane_traj_msg(P,V,times)
+	time += duration
+
+def draw_line(p0,p3,plot=True):
+	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
+	t0 = sp.linspace(0,0,1)
+	t1 = sp.linspace(1,1,1)
+
+	# draw line to
+	
+	#Setup the parameterisation
+	seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
+	num_points = int(seg_length*meters_per_unit*pts_per_meter)
+	if num_points < min_pts: num_points = min_pts
+	t = sp.linspace(0,1,num_points)
+
+	#Use the Linear  formula
+
+	# add the position (Bx,By)
+	Bx, By, Bz = linear(p0, p3, t)
+
+	# add the velocity (Bdx,Bdy)
+	Bdx, Bdy, Bdz = linear_dt(p0, p3, t)
+
+	dxi, dyi, dzi = linear_dt(p0, p3, t0)
+	dxf, dyf, dzf = linear_dt(p0, p3, t1)
+
+	# check for continuity
+	continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
+
+	#Plot the Line
+	if plot:
+		ax.plot(Bx, By, "k")
+
+	# Add to trajectory msg
+	P = np.array([Bx,By,Bz])
+	V = np.array([Bdx,Bdy,Bdz])
+
+	# find the duration of the curent segment at constant velocity
+	duration = seg_length*meters_per_unit/meters_per_second
+
+	# when continuous, will having 2 times that are the same mess up the joint_action_server?
+
+	if not continuous:
+		time += time_between
+	
+	t = [(x*duration)+time for x in t]
+	# allow time to stop if not continuous path
+	if not continuous:
+		P = np.insert(P,0,P[:,0],axis=1)
+		V = np.insert(V,0,[0.0,0.0,0.0],axis=1)
+		time -= time_between/2.0
+		t = np.insert(t,0,time)
+		time += time_between/2.0
+
+	add_to_plane_traj_msg(P,V,t)
+	time += duration	
 
 def pathCb(path):
 	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
 
-	p0 = [0,0]
-	p3 = [0,0]
-	t0 = sp.linspace(0,0,1)
-	t1 = sp.linspace(1,1,1)
+	p0 = [0,0,0]
+	p3 = [0,0,0]
 
 	if (path.type == "R"):
 		# reset graph
@@ -88,170 +260,40 @@ def pathCb(path):
 		return
 
 	if (path.type == "C"):
-		# draw cubic bezier curve
 		p0 = curr_pos
-		p1 = [path.x1,path.y1]
-		p2 = [path.x2,path.y2]
-		p3 = [path.x,path.y]
-
-		#Setup the parameterisation
-		seg_length = bezier_cubic_length(p0, p1, p2, p3)
-		num_points = int(seg_length*meters_per_unit*pts_per_meter)
-		if num_points < min_pts: num_points = min_pts
-		t = sp.linspace(0,1,num_points)
-
-		#Use the Cubic Bezier formula
-
-		# add the position (Bx,By)
-		Bx, By = bezier_cubic(p0, p1, p2, p3, t)
-
-		# add the velocity (Bdx,Bdy)
-		Bdx, Bdy = bezier_cubic_dt(p0, p1, p2, p3, t)
-
-		dxi, dyi = bezier_cubic_dt(p0, p1, p2, p3, t0)
-		dxf, dyf = bezier_cubic_dt(p0, p1, p2, p3, t1)
-
-		continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
-
-		#Plot the Bezier curve
-		ax.plot(Bx, By, "k")
-
-		# Add to trajectory msg
-		P = np.array([Bx,By])
-		V = np.array([Bdx,Bdy])
-
-		# find the duration of the curent segment at constant velocity
-		duration = seg_length*meters_per_unit/meters_per_second
-
-		times = []
-
-		# allow time to stop if not continuous path
-		if not continuous:			
-			P = np.insert(P,0,P[:,0],axis=1)
-			V = np.insert(V,0,[0.0,0.0],axis=1)
-			time += time_between/2.0
-			times.append(time)
-			time += time_between/2.0
-
-		# find the duration of a piece of the segment at constant velocity
-		seconds_per_unit = meters_per_unit/meters_per_second
-		for curr_t in t:
-			dt = bezier_cubic_length(p0, p1, p2, p3, ti=0.0, tf=curr_t)*seconds_per_unit
-			times.append(time + dt)
-
-		add_to_plane_traj_msg(P,V,times)
-		time += duration
-
+		p1 = [path.x1,path.y1,0]
+		p2 = [path.x2,path.y2,0]
+		p3 = [path.x,path.y,0]
+		draw_cubic_bezier(p0,p1,p2,p3)	
+		
 	elif (path.type == "Q"):
-		# draw quadratic bezier curve
 		p0 = curr_pos
-		p1 = [path.x1,path.y1]
-		p3 = [path.x,path.y]
-
-		#Setup the parameterisation
-		seg_length = bezier_quadratic_length(p0, p1, p3)
-		num_points = int(seg_length*meters_per_unit*pts_per_meter)
-		if num_points < min_pts: num_points = min_pts
-		t = sp.linspace(0,1,num_points)
-		
-		#Use the Quadratic Bezier formula
-
-		# add the position (Bx,By)
-		Bx, By = bezier_quadratic(p0, p1, p3, t)
-
-		# add the velocity (Bdx,Bdy)
-		Bdx, Bdy = bezier_quadratic_dt(p0, p1, p3, t)
-
-		dxi, dyi = bezier_quadratic_dt(p0, p1, p3, t0)
-		dxf, dyf = bezier_quadratic_dt(p0, p1, p3, t1)
-
-		continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
-
-		#Plot the Bezier curve
-		ax.plot(Bx, By, "k")
-
-		# Add to trajectory msg
-		P = np.array([Bx,By])
-		V = np.array([Bdx,Bdy])
-		
-		# find the duration of the curent segment at constant velocity
-		duration = seg_length*meters_per_unit/meters_per_second
-
-		times = []
-
-		# allow time to stop if not continuous path
-		if not continuous:
-			P = np.insert(P,0,P[:,0],axis=1)
-			V = np.insert(V,0,[0.0,0.0],axis=1)
-			
-			time += time_between/2.0
-			times.append(time)
-			time += time_between/2.0
-
-		# find the duration of a piece of the segment at constant velocity
-		seconds_per_unit = meters_per_unit/meters_per_second
-		for curr_t in t:
-			times.append(time + bezier_quadratic_length(p0, p1, p3, ti=0.0, tf=curr_t)*seconds_per_unit)
-		
-		add_to_plane_traj_msg(P,V,times)
-		time += duration
+		p1 = [path.x1,path.y1,0]
+		p3 = [path.x,path.y,0]
+		draw_quadratic_bezier(p0,p1,p3)		
 
 	elif (path.type == "L"):
-		# draw line to
 		p0 = curr_pos
-		p3 = [path.x,path.y]
-
-		#Setup the parameterisation
-		seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
-		num_points = int(seg_length*meters_per_unit*pts_per_meter)
-		if num_points < min_pts: num_points = min_pts
-		t = sp.linspace(0,1,num_points)
-
-		#Use the Linear  formula
-
-		# add the position (Bx,By)
-		Bx, By = linear(p0, p3, t)
-
-		# add the velocity (Bdx,Bdy)
-		Bdx, Bdy = linear_dt(p0, p3, t)
-
-		dxi, dyi = linear_dt(p0, p3, t0)
-		dxf, dyf = linear_dt(p0, p3, t1)
-
-		# check for continuity
-		continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
-
-		#Plot the Line
-		ax.plot(Bx, By, "k")
-
-		# Add to trajectory msg
-		P = np.array([Bx,By])
-		V = np.array([Bdx,Bdy])
-
-		# find the duration of the curent segment at constant velocity
-		duration = seg_length*meters_per_unit/meters_per_second
-
-		# when continuous, will having 2 times that are the same mess up the joint_action_server?
-
-		if not continuous:
-			time += time_between
-		
-		t = [(x*duration)+time for x in t]
-		# allow time to stop if not continuous path
-		if not continuous:
-			P = np.insert(P,0,P[:,0],axis=1)
-			V = np.insert(V,0,[0.0,0.0],axis=1)
-			time -= time_between/2.0
-			t = np.insert(t,0,time)
-			time += time_between/2.0
-
-		add_to_plane_traj_msg(P,V,t)
-		time += duration
+		p3 = [path.x,path.y,0]
+		draw_line(p0,p3)
 
 	elif (path.type == "M"):
 		# move pen to
+		z_offset = .05
 		p0 = curr_pos
-		p3 = [path.x,path.y]
+		p3 = [path.x,path.y,0]
+
+		# p1 = deepcopy(p0)
+		# p1[2] += z_offset
+		# p2 = deepcopy(p3)
+		# p2[2] += z_offset
+
+		# draw_line(p0,p1)
+		# curr_pos = p1
+		# draw_line(p1,p2)
+		# curr_pos = p2
+		# draw_line(p2,p3)
+
 		# move_pen_to(p3)
 
 	elif (path.type == "Z"):
@@ -297,11 +339,10 @@ def add_to_plane_traj_msg(P,V,t):
 
 	r, c = P.shape
 
-	z_offset = -.01
 	for ti in t: plane_traj_msg.times.append(ti)
 	for i in range(0,r):
-		plane_traj_msg.positions.append( Vector3( P[i,0], P[i,1], z_offset ) )
-		plane_traj_msg.velocities.append( Vector3( V[i,0], V[i,1], 0 ) )
+		plane_traj_msg.positions.append( Vector3( P[i,0], P[i,1], P[i,2] ) )
+		plane_traj_msg.velocities.append( Vector3( V[i,0], V[i,1], V[i,2] ) )
 
 def send_plane_traj():
 	global plane_traj_pub, plane_traj_msg, time
@@ -321,41 +362,6 @@ def send_plane_traj():
 	plane_traj_msg = Trajectory()
 
 # def move_pen_to(pi,pf):
-# 	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
-# 	p0 = pi
-# 	p3 = pf
-
-# 	z_offset = .05
-# 	# may want to make methods: move_line_to, move_cubic_to, move_quadratic_to
-
-# 	#Setup the parameterisation
-# 	seg_length = np.linalg.norm(np.array(p3)-np.array(p0))
-# 	num_points = int(seg_length*meters_per_unit*pts_per_meter)
-# 	if num_points < min_pts: num_points = min_pts
-# 	t = sp.linspace(0,1,num_points)
-
-# 	#Use the Linear  formula
-
-# 	# add the position (Bx,By)
-# 	Bx, By = linear(p0, p3, t)
-
-# 	# add the velocity (Bdx,Bdy)
-# 	Bdx, Bdy = linear_dt(p0, p3, t)
-
-# 	dxi, dyi = linear_dt(p0, p3, t0)
-# 	dxf, dyf = linear_dt(p0, p3, t1)
-
-# 	# Add to trajectory msg
-# 	P = np.array([Bx,By])
-# 	V = np.array([Bdx,Bdy])
-
-# 	# find the duration of the curent segment at constant velocity
-# 	duration = seg_length*meters_per_unit/meters_per_second
-
-# 	t = [(x*duration)+time for x in t]
-
-# 	add_to_plane_traj_msg(P,V,t)
-# 	time += duration
 	
 def bezier():
 	rospy.init_node("bezier")
