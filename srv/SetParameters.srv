@@ -1,6 +1,6 @@
-float kp
-float ki
-float kd
-float emmax
-float emmult
+float64 kp
+float64 ki
+float64 kd
+float64 emmax
+float64 emmult
 ---
