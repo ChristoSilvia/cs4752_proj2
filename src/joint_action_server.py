@@ -149,7 +149,7 @@ class JointActionServer():
         A[:,0] = T
         A[:,1:] = errors.T
         paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/errors-{0}.csv".format(paramtext),A)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/errors-{0}.csv".format(paramtext),A)
         loginfo("saved errors")
 
     def get_manipulability(self):
