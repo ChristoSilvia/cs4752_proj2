@@ -165,33 +165,33 @@ class rrt() :
 	def __init__(self) :
 		rospy.init_node('rrt')
 		baxter_interface.RobotEnable(CHECK_VERSION).enable()
+		loginfo("Initialized rrt Node")
 
 		self.limb = 'left'
 		self.hand_pose = None
 
-		loginfo("Initializing /check collision")
-		
-		self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
-		rospy.wait_for_service('/check_collsion')
-		loginfo("Initialized /check collision")
+		rospy.sleep(10)
 
 		#will endlessly take its current position and try to move to a random position
 		#while avoiding all obstacles
 		while True :
+			loginfo("Starting New Round of RRT Testing")
 			arm = Limb(self.limb)
 			angle_dict = arm.joint_angles()
 			joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 			qi = np.zeros(7)
 			for i in xrange(0,7) :
 				qi[i] = angle_dict['left_'+joints[i]]
-
+			
+			loginfo("STARTING TO SAMPLE QF")
 			qf = sample_cspace()
 			while not self.Check_Point(qf) :
+				loginfo("INVALID QF TRYING NEW SAMPLE")
 				qf = sample_cspace()
 
-				path = self.RRT_Connect_Planner(qi, qf, 10000000)
-				path = simplify_path(path, len(path)/2)
-				self.MoveAlongPath(path)
+			path = self.RRT_Connect_Planner(qi, qf, 10000000)
+			path = simplify_path(path, len(path)/2)
+			self.MoveAlongPath(path)
 
 		rospy.spin()
 
@@ -208,11 +208,19 @@ class rrt() :
 		#collision_check_req = CheckCollisionRequest()
 		#collision_check_req.arm = String('left')
 		#collision_check_req.config = list(p)
+		loginfo("Initializing /check collision")
+		rospy.wait_for_service('/check_collsion')
+		try :
+			self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+		
+			loginfo("Initialized /check collision")
 
-		arm = String(self.limb)
-		res = self.collision_checker(arm, list(p))
-
-		return res.collision
+			arm = String(self.limb)
+			res = self.collision_checker(arm, list(p))
+			loginfo("received service reponse")
+			return res.collision
+		except rospy.ServiceException, e:
+			print "Service call failed: %s"%e
 
 	def Check_Line(self, p1, p2) :
 		if not self.Check_Point(p2) :
