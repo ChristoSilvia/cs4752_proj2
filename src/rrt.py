@@ -1,6 +1,8 @@
+#!/usr/bin/env python
 import numpy as np
-from scipy.spatial import KDTree
-from scipy.spatial import distance
+#from scipy.spatial import KDTree
+#from scipy.spatial import distance
+import scipy
 
 import rospy
 from cs4752_proj2.srv import *
@@ -15,12 +17,12 @@ from collision_checker.srv import CheckCollision
 
 
 joint_limits = np.array([[-2.461, 0.890],
-                         [-2.147, 1.047],
-                         [-3.028, 3.028],
-                         [-0.052, 2.618],
-                         [-3.059, 3.059],
-                         [-1.571, 2.094],
-                         [-3.059, 3.059]])
+						[-2.147, 1.047],
+						[-3.028, 3.028],
+						[-0.052, 2.618],
+						[-3.059, 3.059],
+						[-1.571, 2.094],
+						[-3.059, 3.059]])
 
 def sample_cspace():
 	global joint_limits
@@ -106,7 +108,7 @@ def path_from(path, node) :
 
 	ind = len(path)-1
 	
-	while not np.array_equal((path[ind])[1], node)
+	while not np.array_equal((path[ind])[1], node) :
 		ind = ind - 1
 	looking_for = (path[ind])[0]
 
@@ -156,65 +158,65 @@ def PointLerp(p1, p2, delta) :
 class rrt() :
 	def __init__(self) :
 		rospy.init_node('rrt')
-        baxter_interface.RobotEnable(CHECK_VERSION).enable()
+		baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
-        self.limb = 'left'
-        self.hand_pose = None
+		self.limb = 'left'
+		self.hand_pose = None
 
 		loginfo("Initialized /check collision")
-        self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
-        loginfo("Initialized /check collision")
+		self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+		loginfo("Initialized /check collision")
 
-        #will endlessly take its current position and try to move to a random position
-        #while avoiding all obstacles
-        while True :
-	       	arm = Limb(self.limb)
-	       	angle_dict = arm.joint_angles()
-	       	joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
-	       	qi = np.zeros(7)
-	       	for i in xrange(0,7) :
-	       		qi[i] = angle_dict[joints[i]]
+		#will endlessly take its current position and try to move to a random position
+		#while avoiding all obstacles
+		while True :
+			arm = Limb(self.limb)
+			angle_dict = arm.joint_angles()
+			joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+			qi = np.zeros(7)
+			for i in xrange(0,7) :
+				qi[i] = angle_dict[joints[i]]
 
-	       	qf = sample_cspace()
-	       	while not self.Check_Point(qf) :
-	       		qf = sample_cspace()
+			qf = sample_cspace()
+			while not self.Check_Point(qf) :
+				qf = sample_cspace()
 
-	        path = self.RRT_Connect_Planner(qi, qf, 10000000)
-	        path = simplify_path(path, len(path)/2)
-	        self.MoveAlongPath(path)
+				path = self.RRT_Connect_Planner(qi, qf, 10000000)
+				path = simplify_path(path, len(path)/2)
+				self.MoveAlongPath(path)
 
-        rospy.spin()
+		rospy.spin()
 
-    def MoveAlongPath(self, path) :
-    	arm = Limb(self.limb)
-    	joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
-    	for p in path :
-    		this_p = {}
-    		for i in xrange(0,7) :
-    			this_p[joints[i]] = p[i]
-    		arm.set_joint_positions(this_p)
+	def MoveAlongPath(self, path) :
+		arm = Limb(self.limb)
+		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+		for p in path :
+			this_p = {}
+			for i in xrange(0,7) :
+				this_p[joints[i]] = p[i]
+			arm.set_joint_positions(this_p)
 
-    def Check_Point(self, p) :
-    	collision_check_req = CheckCollisionRequest()
-    	collision_check_req.arm = 'left'
-    	collision_check_req.config = list(p)
-    	return self.collision_checker(collision_check_req)
+	def Check_Point(self, p) :
+		collision_check_req = CheckCollisionRequest()
+		collision_check_req.arm = 'left'
+		collision_check_req.config = list(p)
+		return self.collision_checker(collision_check_req)
 
-    def Check_Line(self, p1, p2) :
-    	if not self.Check_Point(p2) :
-    		return False
+	def Check_Line(self, p1, p2) :
+		if not self.Check_Point(p2) :
+			return False
 
-    	p = p1
-    	while not np.array_equal(p, p2) :
-    		if not self.Check_Point(p) :
-    			return False
+		p = p1
+		while not np.array_equal(p, p2) :
+			if not self.Check_Point(p) :
+				return False
 
-    		#point lerp is less efficient than possible because i am finding the vector between them 
-    		#during each call	
-    		p = PointLerp(p, p2, .1) #roughly 6 degrees of rotation total
-    	return True
+			#point lerp is less efficient than possible because i am finding the vector between them 
+			#during each call	
+			p = PointLerp(p, p2, .1) #roughly 6 degrees of rotation total
+		return True
 
-    #given an initial and final array of joints, it will find a path to there
+	#given an initial and final array of joints, it will find a path to there
 	#avoiding any singularities and obstacles
 	def RRT_Connect_Planner(self, qinit, qgoal,k) :
 
@@ -329,8 +331,7 @@ def test() :
 
 if __name__ == '__main__':
 	try: 
-        rrt()
-    except rospy.ROSInterruptException:
-        pass
-    #test()
-    
+		rrt()
+	except rospy.ROSInterruptException:
+		pass
+	#test()

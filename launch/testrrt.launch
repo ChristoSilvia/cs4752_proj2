@@ -2,6 +2,6 @@
 	<node name="rrt" pkg="cs4752_proj2" type="rrt.py" output="screen">
 	</node>
 	<include file="$(find collision_checker)/launch/collision_server.launch">
-	<arg name="visualize" value="true"/>
+	<arg name="visualize" value="false"/>
 	</include>
 </launch>
