@@ -283,24 +283,28 @@ def pathCb(path):
 		p0 = curr_pos
 		p3 = [path.x,path.y,0]
 
-		# z_offset = .05/meters_per_unit
-		# p1 = deepcopy(p0)
-		# p1[2] = z_offset
-		# p2 = deepcopy(p3)
-		# p2[2] = z_offset
+		z_offset = .01/meters_per_unit
+		
+		p1 = deepcopy(p0)
+		p1[2] = z_offset
+		p2 = deepcopy(p3)
+		p2[2] = z_offset
 
-		# draw_line(p0,p1,plot=False)
-		# curr_pos = p1
-		# draw_line(p1,p2,plot=False)
-		# curr_pos = p2
-		# draw_line(p2,p3,plot=False)
+		p4 = deepcopy(p3)
+		p4[2] = -z_offset/2.
 
-		# send_plane_traj()
+		draw_line(p0,p1,plot=False)
+		curr_pos = p1
+		draw_line(p1,p2,plot=False)
+		curr_pos = p2
+		draw_line(p2,p4,plot=False)
+
+		send_plane_traj()
 
 	elif (path.type == "Z"):
 		# close path
 		p0 = curr_pos
-		
+
 		# p1 = deepcopy(p0)
 		# z_offset = .05/meters_per_unit
 		# p1[2] = z_offset

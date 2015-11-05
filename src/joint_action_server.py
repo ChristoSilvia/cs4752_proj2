@@ -46,22 +46,7 @@ class JointActionServer():
         loginfo("Initialized /end_effector_velocity")
         self.tool_position_srv = rospy.Service('tool_position', EndEffectorPosition, self.get_tool_position_response)
         loginfo("Initialized /tool_position")
-
-        ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
-        try :
-            rospy.loginfo("Initializing service proxy for /SolvePositionIK...")
-            global iksvc
-            iksvc = rospy.ServiceProxy(ns, SolvePositionIK)
-            rospy.wait_for_service(ns, 5.0)
-            rospy.loginfo("Initialized service proxy for /SolvePositionIK...")
-        except rospy.ServiceException, e:
-            rospy.logerr("Service Call Failed: {0}".format(e))
         
-
-        print "Ready to move robot."
-
-        # HomePose()
-
         rospy.spin()
 
     def move_end_effector_trajectory(self, args):
@@ -213,15 +198,15 @@ class JointActionServer():
             z_positions_velocities[i,1] = args.velocities[i].z
 
         
-        first_pose = Pose()
-        first_pose.orientation = deepcopy(self.limb.endpoint_pose()['orientation'])        
-        first_pose.position = Point(
-            args.positions[0].x,
-            args.positions[0].y,
-            args.positions[0].z)
+        # first_pose = Pose()
+        # first_pose.orientation = deepcopy(self.limb.endpoint_pose()['orientation'])        
+        # first_pose.position = Point(
+        #     args.positions[0].x,
+        #     args.positions[0].y,
+        #     args.positions[0].z)
 
-        MoveToPose(first_pose)
-        rospy.sleep(2)
+        # MoveToPose(first_pose)
+        # rospy.sleep(2)
 
         # current_velocity = self.get_velocity()
         # x_positions_velocities[0,1] = current_velocity[0]
@@ -317,112 +302,6 @@ def maximize_cosine_constrained(a,b,c,n2):
             return upper_root
         else:
             return lower_root
-
-def MoveToPose (pose, inter1=True, inter2=True, inter3=True) :
-    global hand_pose
-    global MOVE_WAIT
-
-    # if inter1 :
-    #     b1 = MoveToIntermediatePose(hand_pose)
-    # if inter2 :
-    #     b2 = MoveToIntermediatePose(pose)
-    # if inter2 :
-    #     b3 = MoveToRightAbovePose(pose)
-
-    joint_solution = inverse_kinematics(pose)
-    if joint_solution != [] :
-        moveArm(joint_solution)
-        rospy.sleep(MOVE_WAIT)
-        return True
-    else :
-        rospy.logerr("FAILED MoveToPose")
-        return False
-
-# def MoveToRightAbovePose(pose) :
-#     global MOVE_WAIT
-
-#     abovepose = deepcopy(pose)
-#     abovepose.position.z += block_size
-
-#     joint_solution = inverse_kinematics(abovepose)
-#     if joint_solution != [] :
-#         moveArm(joint_solution)
-#         rospy.sleep(MOVE_WAIT)
-#         return True
-#     else :
-#         rospy.logerr("FAILED MoveToAbovePose")
-#         return False
-
-# def MoveToIntermediatePose(pose) :
-#     global MOVE_WAIT
-#     global block_size
-#     global initial_pose
-#     global state
-#     global limb
-
-#     interpose = deepcopy(pose)
-#     interpose.position.z = (len(state.stack) + 1) * block_size
-
-#     joint_solution = inverse_kinematics(interpose)
-#     if joint_solution != [] :
-#         moveArm(joint_solution)
-#         rospy.sleep(MOVE_WAIT) #just a made up value atm
-#         return True
-#     else :
-#         rospy.logerr("FAILED MoveToIntermediatePose")
-#         return False
-
-def moveArm (joint_solution) :
-    global limb
-    arm = Limb(limb)
-    #while not rospy.is_shutdown():
-    arm.move_to_joint_positions(joint_solution)
-    rospy.sleep(0.01)
-
-#takes position in base frame of where hand is to go
-#calculates ik and moves limb to that location
-#returns 1 if successful and 0 if invalid solution
-def inverse_kinematics(ourpose) :
-    # given x,y,z will call ik for this position with identity quaternion
-    #in base frame
-    global limb
-    ikreq = SolvePositionIKRequest()
-
-    hdr = Header(stamp=rospy.Time.now(), frame_id='base')
-    poses = {
-        limb : PoseStamped(
-            header = hdr,
-            pose = ourpose
-        ),
-    }         
-    #getting ik of pose
-     
-    ikreq.pose_stamp.append(poses[limb])
-
-    try :
-        ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
-        rospy.wait_for_service(ns, 5.0)
-        resp = iksvc(ikreq)
-    except (rospy.ServiceException, rospy.ROSException), e:
-        rospy.logerr("Service call failed: %s" % (e,))
-        return []
-    if (resp.isValid[0]):
-        print("SUCCESS - Valid Joint Solution Found:")
-        limb_joints = dict(zip(resp.joints[0].name, resp.joints[0].position))
-        #print limb_joints
-        return limb_joints
-    else :
-        rospy.logerr("Invalid pose")
-        return []
-
-def HomePose() :
-    rospy.loginfo("Going to Home Pose")
-    homepose = Pose()
-    homepose.position = Point(0.572578886689,0.181184911298,0.146191403844)
-    homepose.orientation = Quaternion(0.140770659119,0.989645234506,0.0116543447684,0.0254972076605)
-    success = MoveToPose(homepose, False, False, False)
-    rospy.loginfo("Got to Home Pose : %r", success)
-
 
 if __name__ == '__main__':
     try: 
