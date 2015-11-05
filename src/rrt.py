@@ -7,12 +7,15 @@ import scipy
 import rospy
 from cs4752_proj2.srv import *
 import baxter_interface
+from baxter_interface import *
+from std_msgs.msg import String
+
 from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
 from tf.transformations import *
 from copy import deepcopy
 import random
-from collision_checker.srv import CheckCollision
+from collision_checker.srv import CheckCollision, CheckCollisionRequest
 
 
 
@@ -154,6 +157,9 @@ def PointLerp(p1, p2, delta) :
 		return p2
 	return p1 + ((p2-p1)/dist * delta)
 
+def loginfo(message):
+    rospy.loginfo("*****************RRT: {0}".format(message))
+
 
 class rrt() :
 	def __init__(self) :
@@ -163,8 +169,10 @@ class rrt() :
 		self.limb = 'left'
 		self.hand_pose = None
 
-		loginfo("Initialized /check collision")
+		loginfo("Initializing /check collision")
+		
 		self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+		rospy.wait_for_service('/check_collsion')
 		loginfo("Initialized /check collision")
 
 		#will endlessly take its current position and try to move to a random position
@@ -175,7 +183,7 @@ class rrt() :
 			joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 			qi = np.zeros(7)
 			for i in xrange(0,7) :
-				qi[i] = angle_dict[joints[i]]
+				qi[i] = angle_dict['left_'+joints[i]]
 
 			qf = sample_cspace()
 			while not self.Check_Point(qf) :
@@ -197,10 +205,14 @@ class rrt() :
 			arm.set_joint_positions(this_p)
 
 	def Check_Point(self, p) :
-		collision_check_req = CheckCollisionRequest()
-		collision_check_req.arm = 'left'
-		collision_check_req.config = list(p)
-		return self.collision_checker(collision_check_req)
+		#collision_check_req = CheckCollisionRequest()
+		#collision_check_req.arm = String('left')
+		#collision_check_req.config = list(p)
+
+		arm = String(self.limb)
+		res = self.collision_checker(arm, list(p))
+
+		return res.collision
 
 	def Check_Line(self, p1, p2) :
 		if not self.Check_Point(p2) :
