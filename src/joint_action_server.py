@@ -6,12 +6,20 @@ from scipy.interpolate import PiecewisePolynomial
 import matplotlib.pyplot as plt
 
 import rospy
-from geometry_msgs.msg import Vector3
+from std_msgs.msg import *
+from geometry_msgs.msg import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
+from baxter_core_msgs.msg import * #(SolvePositionIK, SolvePositionIKRequest)
+from baxter_core_msgs.srv import *
+from baxter_interface import *
 from baxter_pykdl import baxter_kinematics
 from cs4752_proj2.srv import *
 from tf.transformations import *
+from copy import deepcopy
+
+MOVE_WAIT = 0.1
+limb = "left"
 
 class JointActionServer():
     def __init__(self, limb_name='left'):
@@ -39,20 +47,36 @@ class JointActionServer():
         self.tool_position_srv = rospy.Service('tool_position', EndEffectorPosition, self.get_tool_position_response)
         loginfo("Initialized /tool_position")
 
+        ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
+        try :
+            rospy.loginfo("Initializing service proxy for /SolvePositionIK...")
+            global iksvc
+            iksvc = rospy.ServiceProxy(ns, SolvePositionIK)
+            rospy.wait_for_service(ns, 5.0)
+            rospy.loginfo("Initialized service proxy for /SolvePositionIK...")
+        except rospy.ServiceException, e:
+            rospy.logerr("Service Call Failed: {0}".format(e))
+        
+
+        print "Ready to move robot."
+
+        # HomePose()
+
         rospy.spin()
 
     def move_end_effector_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
         loginfo("Unpacked desired events")
         self.move_trajectory(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
+        loginfo("After move_trajectory")
         return JointActionResponse()
 
     def move_tool_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
         offset = self.get_tool_offset()
-        self.move_trajectory(times, x_positions_velocities + offset[0], 
-                                    y_positions_velocities + offset[1], 
-                                    z_positions_velocities + offset[2])
+        self.move_trajectory(times, x_positions_velocities - offset[0], 
+                                    y_positions_velocities - offset[1], 
+                                    z_positions_velocities - offset[2])
 
         return JointActionResponse()
 
@@ -67,16 +91,18 @@ class JointActionServer():
         T = np.arange(0, times[-1], self.dt)
         n = len(T)
 
-        plt.scatter(times, x_positions_velocities[:,0])
-        plt.scatter(times, y_positions_velocities[:,0])
-        plt.scatter(times, z_positions_velocities[:,0])
-        plt.plot(T,xinterpolator(T))
-        plt.plot(T,yinterpolator(T))
-        plt.plot(T,zinterpolator(T))
-        plt.show()
+        # #################### ERROR IN HERE ####################
+        # plt.scatter(times, x_positions_velocities[:,0])
+        # plt.scatter(times, y_positions_velocities[:,0])
+        # plt.scatter(times, z_positions_velocities[:,0])
+        # plt.plot(T,xinterpolator(T))
+        # plt.plot(T,yinterpolator(T))
+        # plt.plot(T,zinterpolator(T))
+        # plt.show()
 
-        plt.plot(xinterpolator(T),yinterpolator(T))
-        plt.show()
+        # plt.plot(xinterpolator(T),yinterpolator(T))
+        # plt.show()
+        # #################### ERROR IN HERE ####################
 
         velocity_and_w = np.zeros(6)
         velocity_and_w[0] = xinterpolator.derivative(T[0])
@@ -106,6 +132,8 @@ class JointActionServer():
             end_time = T[i] - T[i-1] + t_start
             loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, T[i] -T[i-1]))
             rospy.sleep(end_time - rospy.get_time())
+
+        loginfo("exit_control_mode")
    
         self.limb.exit_control_mode()     
 
@@ -166,32 +194,45 @@ class JointActionServer():
     def unpack_joint_action_message(self, args):
         n = len(args.times)
 
-        times_array = np.empty(n+1)
-        times_array[0] = 0.0
-        times_array[1:] = args.times
+        times_array = np.empty(n)
+        # times_array[0] = 0.0
+        # times_array[1:] = args.times
+        times_array= args.times
         
-        x_positions_velocities = np.empty((n+1, 2))
-        y_positions_velocities = np.empty((n+1, 2))
-        z_positions_velocities = np.empty((n+1, 2))
+        x_positions_velocities = np.empty((n, 2))
+        y_positions_velocities = np.empty((n, 2))
+        z_positions_velocities = np.empty((n, 2))
 
         for i in xrange(0,n):
-            x_positions_velocities[i+1,0] = args.positions[i].x
-            y_positions_velocities[i+1,0] = args.positions[i].y
-            z_positions_velocities[i+1,0] = args.positions[i].z
+            x_positions_velocities[i,0] = args.positions[i].x
+            y_positions_velocities[i,0] = args.positions[i].y
+            z_positions_velocities[i,0] = args.positions[i].z
 
-            x_positions_velocities[i+1,1] = args.velocities[i].x
-            y_positions_velocities[i+1,1] = args.velocities[i].y
-            z_positions_velocities[i+1,1] = args.velocities[i].z
+            x_positions_velocities[i,1] = args.velocities[i].x
+            y_positions_velocities[i,1] = args.velocities[i].y
+            z_positions_velocities[i,1] = args.velocities[i].z
 
-        current_velocity = self.get_velocity()
-        x_positions_velocities[0,1] = current_velocity[0]
-        y_positions_velocities[0,1] = current_velocity[1]
-        z_positions_velocities[0,1] = current_velocity[2]
         
-        current_position = self.get_position()
-        x_positions_velocities[0,0] = current_position[0]
-        y_positions_velocities[0,0] = current_position[1]
-        z_positions_velocities[0,0] = current_position[2]
+        first_pose = Pose()
+        first_pose.orientation = deepcopy(self.limb.endpoint_pose()['orientation'])        
+        first_pose.position = Point(
+            args.positions[0].x,
+            args.positions[0].y,
+            args.positions[0].z)
+
+        MoveToPose(first_pose)
+        rospy.sleep(2)
+
+        # current_velocity = self.get_velocity()
+        # x_positions_velocities[0,1] = current_velocity[0]
+        # y_positions_velocities[0,1] = current_velocity[1]
+        # z_positions_velocities[0,1] = current_velocity[2]
+        
+        
+        # current_position = self.get_position()
+        # x_positions_velocities[0,0] = current_position[0]
+        # y_positions_velocities[0,0] = current_position[1]
+        # z_positions_velocities[0,0] = current_position[2]
 
         return times_array, x_positions_velocities, y_positions_velocities, z_positions_velocities
     
@@ -230,11 +271,6 @@ class JointActionServer():
 
 def loginfo(message):
     rospy.loginfo("Joint Action Server: {0}".format(message))
-
-def quaternion_to_rotation(q):
-    # from http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/
-#   return np.array([[1 - 2*q.y*q.y - 2*q.z*q.z, 2*q.x*q.y - 2*q.z*q.w, 2*q.x*q.z + 2*q.y*q.w],[2*q.x*q.y + 2*q.z*q.w, 1 - 2*q.x*q.x - 2*q.z*q.z, 2*q.y*q.z - 2*q.x*q.w],[2*q.x*.q.z + 2*q.y*q.w, 2*q.y*q.z + 2*q.x*q.w, 1 - 2*q.x*q.x - 2*q.y*q.y]])
-    return np.array([[1,0,0],[0,1,0],[0,0,1]])
 
 def null(a, rtol=1e-5):
     # http://stackoverflow.com/questions/19820921/a-simple-matlab-like-way-of-finding-the-null-space-of-a-small-matrix-in-numpy
@@ -281,6 +317,112 @@ def maximize_cosine_constrained(a,b,c,n2):
             return upper_root
         else:
             return lower_root
+
+def MoveToPose (pose, inter1=True, inter2=True, inter3=True) :
+    global hand_pose
+    global MOVE_WAIT
+
+    # if inter1 :
+    #     b1 = MoveToIntermediatePose(hand_pose)
+    # if inter2 :
+    #     b2 = MoveToIntermediatePose(pose)
+    # if inter2 :
+    #     b3 = MoveToRightAbovePose(pose)
+
+    joint_solution = inverse_kinematics(pose)
+    if joint_solution != [] :
+        moveArm(joint_solution)
+        rospy.sleep(MOVE_WAIT)
+        return True
+    else :
+        rospy.logerr("FAILED MoveToPose")
+        return False
+
+# def MoveToRightAbovePose(pose) :
+#     global MOVE_WAIT
+
+#     abovepose = deepcopy(pose)
+#     abovepose.position.z += block_size
+
+#     joint_solution = inverse_kinematics(abovepose)
+#     if joint_solution != [] :
+#         moveArm(joint_solution)
+#         rospy.sleep(MOVE_WAIT)
+#         return True
+#     else :
+#         rospy.logerr("FAILED MoveToAbovePose")
+#         return False
+
+# def MoveToIntermediatePose(pose) :
+#     global MOVE_WAIT
+#     global block_size
+#     global initial_pose
+#     global state
+#     global limb
+
+#     interpose = deepcopy(pose)
+#     interpose.position.z = (len(state.stack) + 1) * block_size
+
+#     joint_solution = inverse_kinematics(interpose)
+#     if joint_solution != [] :
+#         moveArm(joint_solution)
+#         rospy.sleep(MOVE_WAIT) #just a made up value atm
+#         return True
+#     else :
+#         rospy.logerr("FAILED MoveToIntermediatePose")
+#         return False
+
+def moveArm (joint_solution) :
+    global limb
+    arm = Limb(limb)
+    #while not rospy.is_shutdown():
+    arm.move_to_joint_positions(joint_solution)
+    rospy.sleep(0.01)
+
+#takes position in base frame of where hand is to go
+#calculates ik and moves limb to that location
+#returns 1 if successful and 0 if invalid solution
+def inverse_kinematics(ourpose) :
+    # given x,y,z will call ik for this position with identity quaternion
+    #in base frame
+    global limb
+    ikreq = SolvePositionIKRequest()
+
+    hdr = Header(stamp=rospy.Time.now(), frame_id='base')
+    poses = {
+        limb : PoseStamped(
+            header = hdr,
+            pose = ourpose
+        ),
+    }         
+    #getting ik of pose
+     
+    ikreq.pose_stamp.append(poses[limb])
+
+    try :
+        ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
+        rospy.wait_for_service(ns, 5.0)
+        resp = iksvc(ikreq)
+    except (rospy.ServiceException, rospy.ROSException), e:
+        rospy.logerr("Service call failed: %s" % (e,))
+        return []
+    if (resp.isValid[0]):
+        print("SUCCESS - Valid Joint Solution Found:")
+        limb_joints = dict(zip(resp.joints[0].name, resp.joints[0].position))
+        #print limb_joints
+        return limb_joints
+    else :
+        rospy.logerr("Invalid pose")
+        return []
+
+def HomePose() :
+    rospy.loginfo("Going to Home Pose")
+    homepose = Pose()
+    homepose.position = Point(0.572578886689,0.181184911298,0.146191403844)
+    homepose.orientation = Quaternion(0.140770659119,0.989645234506,0.0116543447684,0.0254972076605)
+    success = MoveToPose(homepose, False, False, False)
+    rospy.loginfo("Got to Home Pose : %r", success)
+
 
 if __name__ == '__main__':
     try: 

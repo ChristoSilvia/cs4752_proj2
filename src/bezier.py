@@ -280,30 +280,32 @@ def pathCb(path):
 	elif (path.type == "M"):
 		send_plane_traj()
 		# move pen to
-		z_offset = .05/meters_per_unit
 		p0 = curr_pos
 		p3 = [path.x,path.y,0]
 
-		p1 = deepcopy(p0)
-		p1[2] = z_offset
-		p2 = deepcopy(p3)
-		p2[2] = z_offset
+		# z_offset = .05/meters_per_unit
+		# p1 = deepcopy(p0)
+		# p1[2] = z_offset
+		# p2 = deepcopy(p3)
+		# p2[2] = z_offset
 
-		draw_line(p0,p1,plot=False)
-		curr_pos = p1
-		draw_line(p1,p2,plot=False)
-		curr_pos = p2
-		draw_line(p2,p3,plot=False)
+		# draw_line(p0,p1,plot=False)
+		# curr_pos = p1
+		# draw_line(p1,p2,plot=False)
+		# curr_pos = p2
+		# draw_line(p2,p3,plot=False)
 
-		send_plane_traj()
+		# send_plane_traj()
 
 	elif (path.type == "Z"):
 		# close path
 		p0 = curr_pos
-		p1 = deepcopy(p0)
-		p1[2] = z_offset
-		draw_line(p0,p1,plot=False)
-		curr_pos = p1
+		
+		# p1 = deepcopy(p0)
+		# z_offset = .05/meters_per_unit
+		# p1[2] = z_offset
+		# draw_line(p0,p1,plot=False)
+		# curr_pos = p1
 		
 		send_plane_traj()
 
@@ -367,8 +369,6 @@ def send_plane_traj():
 
 	plane_traj_msg = Trajectory()
 
-# def move_pen_to(pi,pf):
-	
 def bezier():
 	rospy.init_node("bezier")
 	loginfo("Initialized node Bezier")

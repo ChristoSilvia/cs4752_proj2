@@ -43,7 +43,7 @@ class controller() :
 
         self.got_plane_traj = False
         self.calibrated_plane = False
-        self.calibrate_plane()
+        # self.calibrate_plane()
 
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
 
@@ -124,7 +124,8 @@ class controller() :
 
 
     def get_tool_pos(self):
-        tool_vec = self.tool_position_server().position
+        tool_vec = self.position_server().position
+        # tool_vec = self.tool_position_server().position
         tool = np.array([tool_vec.x,tool_vec.y,tool_vec.z])
         return tool
 
@@ -143,30 +144,31 @@ class controller() :
         try:
             self.plane_translation
             self.plane_rotation
-        except NameError:
-            loginfo("Making position call")
+        except AttributeError:
+            loginfo("Getting Current Pos Because Plane Not Calibrated")
             p = self.position_server().position
         
             self.plane_translation = translation_matrix([p.x,p.y,p.z])
+            # self.plane_translation = translation_matrix(self.get_tool_pos())
             # self.plane_rotation = np.identity(4)
             self.plane_rotation = self.matrix_from_euler(0,0,-90)
 
-    def PlaneToBasePoint(self, plane_x,plane_y):
+    def PlaneToBasePoint(self, plane_x,plane_y,plane_z):
         self.transform_setup()
 
         M = np.dot(self.plane_translation, self.plane_rotation)
 
-        plane_coords = np.array([plane_x,plane_y,0,1])
+        plane_coords = np.array([plane_x,plane_y,plane_z,1])
         base_coords = np.dot(M, plane_coords.T)
         base_coords = base_coords[:3]/base_coords[3]
         base_coords.reshape((1, 3))
         # print "base_coords: {0}".format(base_coords)
         return base_coords
 
-    def PlaneToBaseDir(self, plane_x,plane_y):
+    def PlaneToBaseDir(self, plane_x,plane_y,plane_z):
         self.transform_setup()
 
-        plane_dir = np.array([plane_x,plane_y,0,1])
+        plane_dir = np.array([plane_x,plane_y,plane_z,1])
         base_dir = np.dot(self.plane_rotation, plane_dir.T)
         base_dir = base_dir[:3]/base_dir[3]
         base_dir.reshape((1, 3))
@@ -183,12 +185,12 @@ class controller() :
         velocities = []
         for i in range(0,len(plane_traj_msg.positions)):
             pp = plane_traj_msg.positions[i]
-            wp = self.PlaneToBasePoint(pp.x,pp.y)
+            wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z)
             P = np.append(P, [wp], axis=0)
             positions.append(Vector3(wp[0],wp[1],wp[2]))
 
             pv = plane_traj_msg.velocities[i]
-            wv = self.PlaneToBaseDir(pv.x,pv.y)
+            wv = self.PlaneToBaseDir(pv.x,pv.y,pv.z)
             V = np.append(V, [wv], axis=0)
             velocities.append(Vector3(wv[0],wv[1],wv[2]))
 
