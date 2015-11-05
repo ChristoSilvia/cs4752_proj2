@@ -5,12 +5,19 @@ from scipy.interpolate import PiecewisePolynomial
 from scipy.optimize import minimize
 
 import rospy
-from geometry_msgs.msg import Vector3
+from std_msgs.msg import *
+from geometry_msgs.msg import *
 from cs4752_proj2.srv import *
 import baxter_interface
+from baxter_interface import *
+from baxter_core_msgs.msg import * #(SolvePositionIK, SolvePositionIKRequest)
+from baxter_core_msgs.srv import *
 from baxter_interface import CHECK_VERSION
 from baxter_pykdl import baxter_kinematics
 from tf.transformations import *
+
+MOVE_WAIT = 0.1
+limb = "left"
 
 
 def loginfo(logstring):
@@ -30,6 +37,18 @@ def test():
     parameter_server = rospy.ServiceProxy("/set_parameters", SetParameters)
     loginfo("Initialized parameter server")
 
+    ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
+    try :
+        rospy.loginfo("Initializing service proxy for /SolvePositionIK...")
+        global iksvc
+        iksvc = rospy.ServiceProxy(ns, SolvePositionIK)
+        rospy.wait_for_service(ns, 5.0)
+        rospy.loginfo("Initialized service proxy for /SolvePositionIK...")
+    except rospy.ServiceException, e:
+        rospy.logerr("Service Call Failed: {0}".format(e))
+    print "Ready to move robot."
+        
+
     T_max = 10.0
     n_samples = 20
     T = np.linspace(0,T_max,n_samples)[1:]
@@ -37,6 +56,7 @@ def test():
 
     base_position = position_server().position
     
+
     def evaluate_parameters(params):
         loginfo(params)
         A = 0.06
@@ -52,7 +72,8 @@ def test():
 
         errors = np.empty(n_tests)
         for j in xrange(n_tests):
-            joint_action_server([0.0, 2.0], [position_server().position, base_position], [Vector3(0.0,0.0,0.0),Vector3(0.0,0.0,0.0)])           
+            HomePose()
+            # joint_action_server([0.0, 2.0], [position_server().position, base_position], [Vector3(0.0,0.0,0.0),Vector3(0.0,0.0,0.0)])           
             initial_position = position_server().position
             positions = []
             velocities = []
@@ -67,7 +88,7 @@ def test():
             errors[j] = np.sqrt( (initial_position.x - final_position.x)**2 + (initial_position.y - final_position.y)**2 + (initial_position.z - final_position.z)**2)
             loginfo(errors[j])
 
-            joint_action_server([0.0,2.0], [initial_position, base_position], [Vector3(0.0,0.0,0.0),Vector3(0.0,0.0,0.0)])
+            # joint_action_server([0.0,2.0], [initial_position, base_position], [Vector3(0.0,0.0,0.0),Vector3(0.0,0.0,0.0)])
        
         return np.mean(errors)
 
@@ -77,5 +98,77 @@ def test():
                             method='Nelder-Mead')
     loginfo("resultant parameters: {0}".format(sweet_params))
 
+def HomePose() :
+    rospy.loginfo("Going to Home Pose")
+    homepose = Pose()
+    homepose.position = Point(0.572578886689,0.181184911298,0.146191403844)
+    homepose.orientation = Quaternion(0.140770659119,0.989645234506,0.0116543447684,0.0254972076605)
+    success = MoveToPose(homepose, False, False, False)
+    rospy.loginfo("Got to Home Pose : %r", success)
+
+def MoveToPose (pose, inter1=True, inter2=True, inter3=True) :
+    # global hand_pose
+    global MOVE_WAIT
+
+    # if inter1 :
+    #     b1 = MoveToIntermediatePose(hand_pose)
+    # if inter2 :
+    #     b2 = MoveToIntermediatePose(pose)
+    # if inter2 :
+    #     b3 = MoveToRightAbovePose(pose)
+
+    joint_solution = inverse_kinematics(pose)
+    if joint_solution != [] :
+        moveArm(joint_solution)
+        rospy.sleep(MOVE_WAIT)
+        return True
+    else :
+        rospy.logerr("FAILED MoveToPose")
+        return False
+
+def moveArm (joint_solution) :
+    global limb
+    arm = Limb(limb)
+    #while not rospy.is_shutdown():
+    arm.move_to_joint_positions(joint_solution)
+    rospy.sleep(0.01)
+
+#takes position in base frame of where hand is to go
+#calculates ik and moves limb to that location
+#returns 1 if successful and 0 if invalid solution
+def inverse_kinematics(ourpose) :
+    # given x,y,z will call ik for this position with identity quaternion
+    #in base frame
+    global limb
+    ikreq = SolvePositionIKRequest()
+
+    hdr = Header(stamp=rospy.Time.now(), frame_id='base')
+    poses = {
+        limb : PoseStamped(
+            header = hdr,
+            pose = ourpose
+        ),
+    }         
+    #getting ik of pose
+     
+    ikreq.pose_stamp.append(poses[limb])
+
+    try :
+        ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
+        rospy.wait_for_service(ns, 5.0)
+        resp = iksvc(ikreq)
+    except (rospy.ServiceException, rospy.ROSException), e:
+        rospy.logerr("Service call failed: %s" % (e,))
+        return []
+    if (resp.isValid[0]):
+        print("SUCCESS - Valid Joint Solution Found:")
+        limb_joints = dict(zip(resp.joints[0].name, resp.joints[0].position))
+        #print limb_joints
+        return limb_joints
+    else :
+        rospy.logerr("Invalid pose")
+        return []
+    
+    
 if __name__ == '__main__':
     test()
