@@ -18,20 +18,21 @@ from cs4752_proj2.srv import *
 from tf.transformations import *
 from copy import deepcopy
 
-MOVE_WAIT = 0.1
-limb = "left"
-
 class JointActionServer():
     def __init__(self, limb_name='left'):
         rospy.init_node('joint_action_server')
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
+        self.limb_name = limb_name
         self.limb = baxter_interface.Limb(limb_name)
         self.limb_kin = baxter_kinematics(limb_name)
         self.joint_names = self.limb.joint_names()
         self.kp = 0.01
         self.ki = 0.01
+        self.kd = 0.0
         self.dt = 0.012
+        self.extra_motion_maximum = 0.05
+        self.extra_motion_multiple = 2.0
         self.pen_length = 0.165
         self.deriv_step = 1e-5
         self.secondary_objective = False 
@@ -46,8 +47,16 @@ class JointActionServer():
         loginfo("Initialized /end_effector_velocity")
         self.tool_position_srv = rospy.Service('tool_position', EndEffectorPosition, self.get_tool_position_response)
         loginfo("Initialized /tool_position")
+        self.param_src = rospy.Service('set_parameters', SetParameters, self.parameter_response)
         
         rospy.spin()
+
+    def parameter_response(self, args):
+        self.kp = args.kp
+        self.ki = args.ki
+        self.kd = args.kd
+        self.extra_motion_multiple = args.emmult
+        self.extra_motion_maximum = args.emmax
 
     def move_end_effector_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
@@ -94,6 +103,7 @@ class JointActionServer():
         velocity_and_w[1] = yinterpolator.derivative(T[0])
         velocity_and_w[2] = zinterpolator.derivative(T[0])
         vx_corrector, vy_corrector, vz_corrector = 0.0, 0.0, 0.0
+        last_vx_corrector, last_vy_corrector, last_vz_corrector = 0.0, 0.0, 0.0
         vx_integral, vy_integral, vz_integral = 0.0, 0.0, 0.0
         for i in xrange(1,n):
             t_start = rospy.get_time()
@@ -108,10 +118,17 @@ class JointActionServer():
             vx_integral += vx_corrector * (T[i] - T[i-1])
             vy_integral += vy_corrector * (T[i] - T[i-1])
             vz_integral += vz_corrector * (T[i] - T[i-1])
+            vx_derivative = (vx_corrector - last_vx_corrector)/(T[i] - T[i-1])
+            vy_derivative = (vy_corrector - last_vy_corrector)/(T[i] - T[i-1])
+            vz_derivative = (vz_corrector - last_vz_corrector)/(T[i] - T[i-1])
 
-            velocity_and_w[0] = xinterpolator.derivative(T[i]) + self.kp * vx_corrector + self.ki * vx_integral
-            velocity_and_w[1] = yinterpolator.derivative(T[i]) + self.kp * vy_corrector + self.ki * vy_integral
-            velocity_and_w[2] = zinterpolator.derivative(T[i]) + self.kp * vz_corrector + self.ki * vz_integral
+            velocity_and_w[0] = xinterpolator.derivative(T[i]) + self.kp * vx_corrector + self.ki * vx_integral - self.kd * vx_derivative
+            velocity_and_w[1] = yinterpolator.derivative(T[i]) + self.kp * vy_corrector + self.ki * vy_integral - self.kd * vy_derivative
+            velocity_and_w[2] = zinterpolator.derivative(T[i]) + self.kp * vz_corrector + self.ki * vz_integral - self.kd * vz_derivative
+
+            last_vx_corrector = vx_corrector
+            last_vy_corrector = vy_corrector
+            last_vz_corrector = vz_corrector
  
             desired_interval = T[i] - T[i-1]
             end_time = T[i] - T[i-1] + t_start
@@ -168,7 +185,7 @@ class JointActionServer():
             loginfo("b: {0}".format(b))
             loginfo("Jb: {0}".format(Jb))
             loginfo("dmu: {0}".format(direction_of_manipulability))
-            return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , 5*mag_b_squared + 0.1)
+            return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , self.extra_motion_multiple*mag_b_squared + self.extra_motion_maximum)
 
     def make_joint_dict(self, joint_vector):
         joint_dict = {}

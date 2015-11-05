@@ -61,6 +61,7 @@ add_service_files(
   JointAction.srv
   EndEffectorPosition.srv
   EndEffectorVelocity.srv
+  SetParameters.srv
 )
 
 ## Generate actions in the 'action' folder
