@@ -9,8 +9,8 @@ from cs4752_proj2.msg import *
 from cs4752_proj2.srv import *
 from copy import deepcopy
 
-curr_pos = [0.0,0.0]
-curr_vel = [0.0,0.0]
+curr_pos = [0.0,0.0,0.0]
+curr_vel = [0.0,0.0,0.0]
 plane_traj_msg = Trajectory()
 time = 0
 meters_per_second = .03/1
@@ -101,7 +101,7 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	dxi, dyi, dzi = bezier_cubic_dt(p0, p1, p2, p3, t0)
 	dxf, dyf, dzf = bezier_cubic_dt(p0, p1, p2, p3, t1)
 
-	continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
+	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	#Plot the Bezier curve
 	ax.plot(Bx, By, "k")
@@ -118,7 +118,7 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	# allow time to stop if not continuous path
 	if not continuous:			
 		P = np.insert(P,0,P[:,0],axis=1)
-		V = np.insert(V,0,[0.0,0.0],axis=1)
+		V = np.insert(V,0,[0.0,0.0,0.0],axis=1)
 		time += time_between/2.0
 		times.append(time)
 		time += time_between/2.0
@@ -156,7 +156,7 @@ def draw_quadratic_bezier(p0,p1,p3):
 	dxi, dyi, dzi = bezier_quadratic_dt(p0, p1, p3, t0)
 	dxf, dyf, dzf = bezier_quadratic_dt(p0, p1, p3, t1)
 
-	continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
+	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	#Plot the Bezier curve
 	ax.plot(Bx, By, "k")
@@ -173,7 +173,7 @@ def draw_quadratic_bezier(p0,p1,p3):
 	# allow time to stop if not continuous path
 	if not continuous:
 		P = np.insert(P,0,P[:,0],axis=1)
-		V = np.insert(V,0,[0.0,0.0],axis=1)
+		V = np.insert(V,0,[0.0,0.0,0.0],axis=1)
 		
 		time += time_between/2.0
 		times.append(time)
@@ -212,7 +212,7 @@ def draw_line(p0,p3,plot=True):
 	dxf, dyf, dzf = linear_dt(p0, p3, t1)
 
 	# check for continuity
-	continuous = is_continuous(p0, dxi[0], dyi[0], dxf[0], dyf[0])
+	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	#Plot the Line
 	if plot:
@@ -278,28 +278,33 @@ def pathCb(path):
 		draw_line(p0,p3)
 
 	elif (path.type == "M"):
+		send_plane_traj()
 		# move pen to
-		z_offset = .05
+		z_offset = .05/meters_per_unit
 		p0 = curr_pos
 		p3 = [path.x,path.y,0]
 
-		# p1 = deepcopy(p0)
-		# p1[2] += z_offset
-		# p2 = deepcopy(p3)
-		# p2[2] += z_offset
+		p1 = deepcopy(p0)
+		p1[2] = z_offset
+		p2 = deepcopy(p3)
+		p2[2] = z_offset
 
-		# draw_line(p0,p1)
-		# curr_pos = p1
-		# draw_line(p1,p2)
-		# curr_pos = p2
-		# draw_line(p2,p3)
+		draw_line(p0,p1,plot=False)
+		curr_pos = p1
+		draw_line(p1,p2,plot=False)
+		curr_pos = p2
+		draw_line(p2,p3,plot=False)
 
-		# move_pen_to(p3)
+		send_plane_traj()
 
 	elif (path.type == "Z"):
 		# close path
 		p0 = curr_pos
-
+		p1 = deepcopy(p0)
+		p1[2] = z_offset
+		draw_line(p0,p1,plot=False)
+		curr_pos = p1
+		
 		send_plane_traj()
 
 	#Add those to the axes
@@ -308,20 +313,20 @@ def pathCb(path):
 	curr_pos = p3
 	fig.canvas.draw()
 
-def is_continuous(p0,dxi,dyi,dxf,dyf):
+def is_continuous(p0,vi,vf):
 	global curr_vel
 	
 	old_vel = np.array(curr_vel)
 	if np.linalg.norm(old_vel) != 0.0:
 		old_vel /= np.linalg.norm(old_vel)
-	new_vel = np.array([dxi,dyi])
+	new_vel = np.array(vi)
 	new_vel /= np.linalg.norm(new_vel)
 	vel_diff = np.dot(old_vel,new_vel)
 
-	tolerence = .15
+	tolerence = .1
 	not_continuous = np.linalg.norm(old_vel) == 0.0 or 1-vel_diff > tolerence
 
-	curr_vel = [dxf,dyf]
+	curr_vel = vf
 	return not not_continuous
 
 def add_to_plane_traj_msg(P,V,t):
@@ -349,16 +354,17 @@ def send_plane_traj():
 	time = 0
 	plane_traj_msg.reference_frame = "/plane_frame"
 
-	print "################# send_plane_traj #################"
-	print "plane_traj_msg:"
-	print "plane_traj_msg.reference_frame: %s" % plane_traj_msg.reference_frame
-	print "len(times): %d" % len(plane_traj_msg.times)
-	print "len(positions): %d" % len(plane_traj_msg.positions)
-	print "len(velocities): %d" % len(plane_traj_msg.velocities)
-	print "duration: %f" % plane_traj_msg.times[len(plane_traj_msg.times)-1]
-	print "###################################################"
+	if len(plane_traj_msg.times) > 0:
+		print "################# send_plane_traj #################"
+		print "plane_traj_msg:"
+		print "plane_traj_msg.reference_frame: %s" % plane_traj_msg.reference_frame
+		print "len(times): %d" % len(plane_traj_msg.times)
+		print "len(positions): %d" % len(plane_traj_msg.positions)
+		print "len(velocities): %d" % len(plane_traj_msg.velocities)
+		print "duration: %f" % plane_traj_msg.times[len(plane_traj_msg.times)-1]
+		print "###################################################"
+		plane_traj_pub.publish(plane_traj_msg)
 
-	plane_traj_pub.publish(plane_traj_msg)
 	plane_traj_msg = Trajectory()
 
 # def move_pen_to(pi,pf):
