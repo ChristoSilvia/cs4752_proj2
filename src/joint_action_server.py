@@ -22,7 +22,7 @@ class JointActionServer():
         self.ki = 0.01
         self.dt = 0.012
         self.pen_length = 0.08
-        self.deriv_step = 1e-5
+        self.deriv_step = 1e-5z
         
         self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
         loginfo("Initialized /move_end_effector_trajectory")

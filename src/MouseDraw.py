@@ -5,6 +5,7 @@ from cs4752_proj2.srv import *
 
 from std_msgs.msg import String
 from geometry_msgs.msg import Vector3
+from cs4752_proj2.msg import Trajectory
 
 
 from copy import deepcopy
@@ -21,24 +22,26 @@ class MouseDraw() :
 		rospy.init_node('MouseDraw')
 		loginfo("Initialized MouseDraw Node")
 
-		rospy.wait_for_service("/move_end_effector_trajectory")
-		self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
+		#rospy.wait_for_service("/move_end_effector_trajectory")
+		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
+		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=50)
 
 		self.mouseX = 0
 		self.mouseY = 0
-		self.delMouseX = 0
-		self.delMouseY = 0
 
-		self.listLimit = 30
+		self.limb = 'left'
 
-		self.velocityFilterLength = 5
-		self.VelocityAverage = []
+		self.listLimit = 90
+
+		self.velocityFilterLength = 10
+		self.VelocityFilter = []
 
 		self.times = []
 		self.velocities = []
 		self.positions = []
 
-		self.index = 0
+		self.timeDisplacement = 0
+
 
 		self.scale = .001
 		self.speed = .03 #in meters/second
@@ -61,15 +64,20 @@ class MouseDraw() :
 
 	def sendLiveFeed(self) :
 		self.index = 0
-		
-		self.joint_action_server(self.times, self.velocities, self.positions)
+		traject = Trajectory()
+		traject.reference_frame = self.limb
+		traject.times = self.times
+		traject.positions = self.positions
+		traject.velocities =  self.velocities
+		self.plane_traj_pub.publish(traject)
 		self.velocities = []
 		self.times = []
+
 		self.positions = []
 
 	def getAverageVelocity(self) :
 		mysum = [0,0]
-		for v in self.VelocityAverage :
+		for v in self.VelocityFilter :
 			mysum[0] += v[0]
 			mysum[1] += v[1]
 
@@ -79,18 +87,18 @@ class MouseDraw() :
 
 	def MouseMotion(self, event) :
 		self.canvas.create_rectangle(event.x+3, event.y+3, event.x, event.y, outline="#fb0", fill="#fb0")
-		self.delMouseX = event.x - self.mouseX
-		self.delMouseY = event.y - self.mouseY
+		delMouseX = event.x - self.mouseX
+		delMouseY = event.y - self.mouseY
 		self.mouseX = event.x
 		self.mouseY = event.y
 
 		
 
-		self.VelocityAverage.append((self.delMouseX, self.delMouseY))
-		if len(self.VelocityAverage) > self.velocityFilterLength :
-			self.VelocityAverage.pop(0)
+		self.VelocityFilter.append([delMouseX, delMouseY])
+		if len(self.VelocityFilter) > self.velocityFilterLength :
+			self.VelocityFilter.pop(0)
 
-			self.times.append(rospy.Time.now().to_sec())
+			self.times.append(rospy.Time.now().to_sec()-self.timeDisplacement)
 
 			averageDelta = self.getAverageVelocity()
 			mag = (averageDelta[0] **2 + averageDelta[1]**2)**.5
@@ -104,9 +112,8 @@ class MouseDraw() :
 			position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, 0)
 			self.positions.append(position)
 			
-			self.index = self.index + 1
 
-			if self.index >= self.listLimit :
+			if len(self.times) >= self.listLimit :
 				self.sendLiveFeed()
 			#print "root coordinates: %s/%s" % (event.x_root, event.y_root)
 
@@ -120,6 +127,8 @@ class MouseDraw() :
 		print "Click"
 		self.mouseX = event.x
 		self.mouseY = event.y
+		self.VelocityFilter = []
+		self.timeDisplacement = rospy.Time.now().to_sec()
 
 	def OnMouseUp(self, event) :
 		if self.index > 0 :
