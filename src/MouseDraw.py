@@ -53,6 +53,8 @@ class MouseDraw() :
 		
 		
 		
+
+
 		self.root = Tk()
 		self.canvas = Canvas(width=512, height=512, bg='white')
 		self.canvas.pack(expand=YES, fill=BOTH) 
@@ -119,20 +121,22 @@ class MouseDraw() :
 
 	def MouseMotion(self, event) :
 		
-		delMouseX = event.x - self.mouseX
-		delMouseY = event.y - self.mouseY
+		self.delMouseX = event.x - self.mouseX
+		self.delMouseY = event.y - self.mouseY
 		self.mouseX = event.x
 		self.mouseY = event.y
+		if self.applyMotion() :
+			self.canvas.create_rectangle(event.x+3, event.y+3, event.x, event.y, outline="#fb0", fill="#fb0")
 
 
-
+	def applyMotion(self) :
 		#self.VelocityFilter.append([delMouseX, delMouseY])
 
 		
 		#if len(self.VelocityFilter) > self.velocityFilterLength :
 		#	self.VelocityFilter.pop(0)
 		if rospy.Time.now().to_sec() - self.lastTrajectoryUpdate > self.TrajectoryUpdateWait :
-			self.canvas.create_rectangle(event.x+3, event.y+3, event.x, event.y, outline="#fb0", fill="#fb0")
+		
 			#if not self.times :
 			#	print "RESETING TIME DISPLACEMENT"
 			#	self.timeDisplacement = rospy.Time.now().to_sec()
@@ -181,7 +185,13 @@ class MouseDraw() :
 			if len(self.times) >= self.listLimit :
 				self.sendLiveFeed()
 			self.lastTrajectoryUpdate = rospy.Time.now().to_sec()
-			#print "root coordinates: %s/%s" % (event.x_root, event.y_root)
+			self.delMouseX = 0
+			self.delMouseY = 0
+
+			return True 
+
+		return False
+			
 
 	def OnMouseScreenEnter(self, event) :
 		print "Mouse in Screen"
@@ -200,22 +210,25 @@ class MouseDraw() :
 
 	def on_mousewheelUp(self, event) :
 		print "MOUSE WHEEL UP"
-		self.zVel += .1
+		self.zVel += .004
 		print self.zVel
 		if self.zVel > 0 :
 			self.zDist += .5 * (self.zVel**2)
 		else :
 			self.zDist -= .5 * (self.zVel**2)
+		self.applyMotion()
+
 
 	def on_mousewheelDown(self, event) :
 		print "MOUSE WHEEL DOWN"
-		self.zVel -= .1
+		self.zVel -= .004
 		print self.zVel
 		if self.zVel > 0 :
 			self.zDist += .5 * (self.zVel**2)
 		else :
 			self.zDist -= .5 * (self.zVel**2)
 		print self.zDist
+		self.applyMotion()
 
 
 
