@@ -24,15 +24,15 @@ class MouseDraw() :
 
 		#rospy.wait_for_service("/move_end_effector_trajectory")
 		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=50)
+		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
 
 		#constants
 		self.limb = 'left'
 		self.listLimit = 20
 		self.velocityFilterLength = 10
-		self.scale = .001
+		self.scale = .0005
 		self.speed = .03 #in meters/second
-		self.TrajectoryUpdateWait = .015
+		self.TrajectoryUpdateWait = .02
 
 		self.mouseX = 0
 		self.mouseY = 0
@@ -42,6 +42,7 @@ class MouseDraw() :
 		self.velocities = []
 		self.positions = []
 		self.timeDisplacement = 0
+		self.lastPosition = None
 
 
 
@@ -80,6 +81,9 @@ class MouseDraw() :
 
 	def getAverageVelocity(self) :
 		actualLength = len(self.VelocityFilter) 
+		print "AVERAGE DETAILS::"
+		print actualLength
+		print self.velocityFilterLength
 		if self.velocityFilterLength != actualLength:
 			print "ERROR Velocity filter length is not equal to constant"
 
@@ -92,18 +96,24 @@ class MouseDraw() :
 	
 	#resets message data
 	def recycleTrajectoryMsgData(self) :
+		if self.positions :
+			lastPosition = self.positions[len(self.positions)-1]
+		else :
+			lastPosition = None
 		self.times = []
 		self.velocities = []
 		self.positions = []
+
 
 	#resets all 
 	def resetTrajectoryData(self) :
 		self.VelocityFilter = []
 		self.recycleTrajectoryMsgData()
+		lastPosition = None
 
 
 	def MouseMotion(self, event) :
-		self.canvas.create_rectangle(event.x+3, event.y+3, event.x, event.y, outline="#fb0", fill="#fb0")
+		
 		delMouseX = event.x - self.mouseX
 		delMouseY = event.y - self.mouseY
 		self.mouseX = event.x
@@ -111,48 +121,56 @@ class MouseDraw() :
 
 
 
-		self.VelocityFilter.append([delMouseX, delMouseY])
+		#self.VelocityFilter.append([delMouseX, delMouseY])
 
 		
-		if len(self.VelocityFilter) > self.velocityFilterLength :
-			self.VelocityFilter.pop(0)
-			if rospy.Time.now().to_sec() - self.lastTrajectoryUpdate > self.TrajectoryUpdateWait :
-				if not self.times :
-					print "RESETING TIME DISPLACEMENT"
-					self.timeDisplacement = rospy.Time.now().to_sec()
+		#if len(self.VelocityFilter) > self.velocityFilterLength :
+		#	self.VelocityFilter.pop(0)
+		if rospy.Time.now().to_sec() - self.lastTrajectoryUpdate > self.TrajectoryUpdateWait :
+			self.canvas.create_rectangle(event.x+3, event.y+3, event.x, event.y, outline="#fb0", fill="#fb0")
+			#if not self.times :
+			#	print "RESETING TIME DISPLACEMENT"
+			#	self.timeDisplacement = rospy.Time.now().to_sec()
 
-				
+			
 
-				#self.times.append(rospy.Time.now().to_sec()-self.timeDisplacement)
+			#self.times.append(rospy.Time.now().to_sec()-self.timeDisplacement)
 
-				averageDelta = self.getAverageVelocity()
-				mag = (averageDelta[0] **2 + averageDelta[1]**2)**.5
-				if mag > 0 :
-					velocity = Vector3( averageDelta[0]/mag * self.speed, averageDelta[1]/mag * self.speed, 0)
-				else :
-					velocity = Vector3(0,0,0)
-				
+			#averageDelta = self.getAverageVelocity()
+			#mag = (averageDelta[0] **2 + averageDelta[1]**2)**.5
+			#if mag > 0 :
+			#	velocity = Vector3( averageDelta[0]/mag * self.speed, averageDelta[1]/mag * self.speed, 0)
+			#else :
+			#	velocity = Vector3(0,0,0)
+			
 
+			
+
+			position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, 0)
+			delTime = 0
+			if self.positions : #lists have elements in them so you can update time and velocity accordingly
+				oldpos = self.positions[len(self.positions)-1]
+				distanceTraveled = ((position.x - oldpos.x) **2 + (position.y - oldpos.y)**2)**.5
+				delTime = (distanceTraveled/self.speed)
+				self.times.append(self.times[len(self.times)-1]+delTime)
+
+				velocity = Vector3( (position.x - oldpos.x)/distanceTraveled * self.speed, (position.y - oldpos.y)/distanceTraveled * self.speed, 0)
 				self.velocities.append(velocity)
-
-				position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, 0)
-				delTime = 0
-				if self.positions :
-					oldpos = self.positions[len(self.positions)-1]
-					distanceTraveled = ((position.x - oldpos.x) **2 + (position.y - oldpos.y)**2)**.5
-					delTime = (distanceTraveled/self.speed)
-				if self.times :
-					self.times.append(self.times[len(self.times)-1]+delTime)
+			else : #nothing, so just add zero
+				if self.lastPosition != None :
+					dt = ((position.x - self.lastPosition.x) **2 + (position.y - self.lastPosition.y)**2)**.5
+					velocity = Vector3((position.x-self.lastPosition.x)/dt *self.speed, (position.y-self.lastPosition.y)/dt * self.speed, 0)
 				else :
-					self.times.append(0)
-				self.positions.append(position)
-				
-
-
-				if len(self.times) >= self.listLimit :
-					self.sendLiveFeed()
-				self.lastTrajectoryUpdate = rospy.Time.now().to_sec()
-				#print "root coordinates: %s/%s" % (event.x_root, event.y_root)
+					velocity = Vector3( 0, 0, 0)
+				self.velocities.append(velocity)
+				self.times.append(0)
+			
+			self.positions.append(position)
+			
+			if len(self.times) >= self.listLimit :
+				self.sendLiveFeed()
+			self.lastTrajectoryUpdate = rospy.Time.now().to_sec()
+			#print "root coordinates: %s/%s" % (event.x_root, event.y_root)
 
 	def OnMouseScreenEnter(self, event) :
 		print "Mouse in Screen"

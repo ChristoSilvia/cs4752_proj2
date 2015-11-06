@@ -211,16 +211,17 @@ class rrt() :
 		loginfo("Initializing /check collision")
 		rospy.wait_for_service('/check_collsion')
 		try :
-			self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+			collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
 		
 			loginfo("Initialized /check collision")
 
 			arm = String(self.limb)
-			res = self.collision_checker(arm, list(p))
+			res = collision_checker(arm, list(p))
 			loginfo("received service reponse")
 			return res.collision
 		except rospy.ServiceException, e:
 			print "Service call failed: %s"%e
+			return False
 
 	def Check_Line(self, p1, p2) :
 		if not self.Check_Point(p2) :
