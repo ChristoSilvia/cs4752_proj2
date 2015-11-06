@@ -24,7 +24,7 @@ class MouseDraw() :
 
 		#rospy.wait_for_service("/move_end_effector_trajectory")
 		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=50)
+		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
 
 		#constants
 		self.limb = 'left'
@@ -32,6 +32,7 @@ class MouseDraw() :
 		self.velocityFilterLength = 10
 		self.scale = .0007
 		self.speed = .03 #in meters/second
+		self.ZDelta = .04
 		self.TrajectoryUpdateWait = .02
 
 		self.mouseX = 0
@@ -210,23 +211,23 @@ class MouseDraw() :
 
 	def on_mousewheelUp(self, event) :
 		print "MOUSE WHEEL UP"
-		self.zVel += .004
+		self.zVel += self.ZDelta
 		print self.zVel
 		if self.zVel > 0 :
-			self.zDist += .5 * (self.zVel**2)
+			self.zDist += 1.5 * (self.zVel**2)
 		else :
-			self.zDist -= .5 * (self.zVel**2)
+			self.zDist -= 1.5 * (self.zVel**2)
 		self.applyMotion()
 
 
 	def on_mousewheelDown(self, event) :
 		print "MOUSE WHEEL DOWN"
-		self.zVel -= .004
+		self.zVel -= self.ZDelta
 		print self.zVel
 		if self.zVel > 0 :
-			self.zDist += .5 * (self.zVel**2)
+			self.zDist += 1.5 * (self.zVel**2)
 		else :
-			self.zDist -= .5 * (self.zVel**2)
+			self.zDist -= 1.5 * (self.zVel**2)
 		print self.zDist
 		self.applyMotion()
 
