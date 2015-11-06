@@ -30,7 +30,7 @@ class MouseDraw() :
 		self.limb = 'left'
 		self.listLimit = 20
 		self.velocityFilterLength = 10
-		self.scale = .0005
+		self.scale = .0007
 		self.speed = .03 #in meters/second
 		self.TrajectoryUpdateWait = .02
 
@@ -97,9 +97,9 @@ class MouseDraw() :
 	#resets message data
 	def recycleTrajectoryMsgData(self) :
 		if self.positions :
-			lastPosition = self.positions[len(self.positions)-1]
+			self.lastPosition = self.positions[len(self.positions)-1]
 		else :
-			lastPosition = None
+			self.lastPosition = None
 		self.times = []
 		self.velocities = []
 		self.positions = []
@@ -109,7 +109,7 @@ class MouseDraw() :
 	def resetTrajectoryData(self) :
 		self.VelocityFilter = []
 		self.recycleTrajectoryMsgData()
-		lastPosition = None
+		self.lastPosition = None
 
 
 	def MouseMotion(self, event) :

@@ -10,7 +10,7 @@ from std_msgs.msg import *
 from geometry_msgs.msg import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
-from baxter_core_msgs.msg import * #(SolvePositionIK, SolvePositionIKRequest)
+from baxter_core_msgs.msg import *
 from baxter_core_msgs.srv import *
 from baxter_interface import *
 from baxter_pykdl import baxter_kinematics
@@ -30,12 +30,12 @@ class JointActionServer():
         self.kp = 0.01
         self.ki = 0.01
         self.kd = 0.0
-        self.dt = 0.012
+        self.dt = 0.015
         self.extra_motion_maximum = 0.05
         self.extra_motion_multiple = 2.0
         self.pen_length = 0.165
         self.deriv_step = 1e-5
-        self.secondary_objective = False 
+        self.secondary_objective = False
         
         self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
         loginfo("Initialized /move_end_effector_trajectory")

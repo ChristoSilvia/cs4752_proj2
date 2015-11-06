@@ -43,7 +43,7 @@ class controller() :
 
         self.got_plane_traj = False
         self.calibrated_plane = False
-        # self.calibrate_plane()
+        self.calibrate_plane()
 
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
 

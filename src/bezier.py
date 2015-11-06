@@ -19,7 +19,7 @@ meters_per_unit = .1/66.6
 min_pts = 5
 time_between = .1
 scale = 1
-z_offset = .015
+z_offset = .020
 
 def loginfo(logstring):
 	rospy.loginfo("Bezier: {0}".format(logstring))
@@ -303,6 +303,11 @@ def pathCb(path):
 		p0 = curr_pos
 		p3 = [path.x,path.y,0]
 
+		print "#####################################"
+		print "move pen to"
+		print p3
+		print "#####################################"
+
 		move_pen(p0,p3)
 
 		send_plane_traj()
@@ -369,14 +374,14 @@ def send_plane_traj():
 	plane_traj_msg.reference_frame = "/plane_frame"
 
 	if len(plane_traj_msg.times) > 0:
-		print "################# send_plane_traj #################"
-		print "plane_traj_msg:"
-		print "plane_traj_msg.reference_frame: %s" % plane_traj_msg.reference_frame
-		print "len(times): %d" % len(plane_traj_msg.times)
-		print "len(positions): %d" % len(plane_traj_msg.positions)
-		print "len(velocities): %d" % len(plane_traj_msg.velocities)
-		print "duration: %f" % plane_traj_msg.times[len(plane_traj_msg.times)-1]
-		print "###################################################"
+		# print "################# send_plane_traj #################"
+		# print "plane_traj_msg:"
+		# print "plane_traj_msg.reference_frame: %s" % plane_traj_msg.reference_frame
+		# print "len(times): %d" % len(plane_traj_msg.times)
+		# print "len(positions): %d" % len(plane_traj_msg.positions)
+		# print "len(velocities): %d" % len(plane_traj_msg.velocities)
+		# print "duration: %f" % plane_traj_msg.times[len(plane_traj_msg.times)-1]
+		# print "###################################################"
 		plane_traj_pub.publish(plane_traj_msg)
 
 	plane_traj_msg = Trajectory()
