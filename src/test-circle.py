@@ -33,13 +33,38 @@ def test():
     loginfo("Making position call")
     initial_position = position_server().position
     loginfo(initial_position)
-    joint_action_server([5.0, 10.0],
-                        [Vector3(initial_position.x + 0.1*np.random.rand(),
-                                 initial_position.y + 0.1*np.random.rand(),
-                                 initial_position.z + 0.1*np.random.rand()),
-                         initial_position],
-                        [Vector3(0.11, 0.0, 0.0),
-                         Vector3(0.0, 0.0, 0.0)])
+
+    A = 0.06
+
+    T_max = 10.0
+    n_samples = 20
+    T = np.linspace(0,T_max,n_samples)[1:]
+    # Tau = (T/T_max)**2 * (4.0 - 4.0*(T/T_max) + (T/T_max)**2)
+    # Tauprime = 2*(T/T_max**2)*(4.0 - 4.0*(T/T_max) + (T/T_max)**2) + (T/T_max)**2 * (-4.0/T_max + 2.0*(T/T_max**2))
+    X = A * (1.0 - np.cos(2*np.pi*T/T_max))
+    Y = A * np.sin(2*np.pi*T/T_max)
+    Xprime = A*np.sin(2*np.pi*T/T_max)*2*np.pi/T_max
+    Yprime = A*np.cos(2*np.pi*T/T_max)*2*np.pi/T_max
+
+    times = list(T)
+    positions = []
+    velocities = []
+    for i in xrange(len(T)):
+        positions = positions + [Vector3(initial_position.x + X[i], initial_position.y + Y[i], initial_position.z)]
+        velocities = velocities + [Vector3(Xprime[i], Yprime[i] , 0.0)]
+
+    import matplotlib.pyplot as plt
+    plt.plot(X,Y)
+    plt.show()
+    # plt.plot(T,X)
+    # plt.plot(T,Y)
+    # plt.show()
+    # plt.plot(T,Xprime)
+    # plt.plot(T,Yprime) 
+    # plt.show()
+
+    joint_action_server(times, positions, velocities) 
+
     loginfo(position_server().position.x - initial_position.x)      
     loginfo(position_server().position.y - initial_position.y)      
     loginfo(position_server().position.z - initial_position.z)      

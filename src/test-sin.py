@@ -33,14 +33,24 @@ def test():
     loginfo("Making position call")
     initial_position = position_server().position
     loginfo(initial_position)
-    joint_action_server([5.0, 10.0],
-                        [Vector3(initial_position.x + 0.1*np.random.rand(),
-                                 initial_position.y + 0.1*np.random.rand(),
-                                 initial_position.z + 0.1*np.random.rand()),
-                         initial_position],
-                        [Vector3(0.11, 0.0, 0.0),
-                         Vector3(0.0, 0.0, 0.0)])
-    loginfo(position_server().position.x - initial_position.x)      
+
+    L = 0.2
+    T_max = 10.0
+    n_samples = 5
+    X = np.linspace(0,L,n_samples)[1:]
+    T = np.linspace(0,T_max,n_samples)[1:]
+    Y = 0.05*np.sin(X/(2*np.pi*L))
+
+    times = list(T)
+    positions = []
+    velocities = []
+    for i in xrange(len(T)):
+        positions = positions + [Vector3(initial_position.x + X[i], initial_position.y + Y[i], initial_position.z)]
+        velocities = velocities + [Vector3(0.02, np.cos(X[i]/(2*np.pi*L))*0.02/(2*np.pi*L), 0)]
+
+    joint_action_server(times, positions, velocities) 
+
+    loginfo(position_server().position.x - (initial_position.x + L))      
     loginfo(position_server().position.y - initial_position.y)      
     loginfo(position_server().position.z - initial_position.z)      
      
