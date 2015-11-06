@@ -43,6 +43,9 @@ class MouseDraw() :
 		self.positions = []
 		self.timeDisplacement = 0
 		self.lastPosition = None
+		self.zDist = 0
+		self.zVel = 0
+		self.lastzDist = 0
 
 
 
@@ -57,6 +60,8 @@ class MouseDraw() :
 		self.canvas.bind("<Enter>", self.OnMouseScreenEnter)
 		self.canvas.bind("<Leave>", self.OnMouseScreenExit)
 		self.canvas.bind("<B1-Motion>", self.MouseMotion)
+		self.root.bind_all('<4>', self.on_mousewheelDown,  add='+')
+		self.root.bind_all('<5>', self.on_mousewheelUp,  add='+')
 		self.canvas.bind('c', self.Clear)
 		print "drawing on canvas"
 		
@@ -146,27 +151,33 @@ class MouseDraw() :
 
 			
 
-			position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, 0)
+			position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, self.zDist)
 			delTime = 0
+			velocity = Vector3(0,0,0)
 			if self.positions : #lists have elements in them so you can update time and velocity accordingly
 				oldpos = self.positions[len(self.positions)-1]
-				distanceTraveled = ((position.x - oldpos.x) **2 + (position.y - oldpos.y)**2)**.5
-				delTime = (distanceTraveled/self.speed)
-				self.times.append(self.times[len(self.times)-1]+delTime)
-
-				velocity = Vector3( (position.x - oldpos.x)/distanceTraveled * self.speed, (position.y - oldpos.y)/distanceTraveled * self.speed, 0)
+				distanceTraveled = ((position.x - oldpos.x) **2 + (position.y - oldpos.y)**2 + (self.zDist - self.lastzDist)**2)**.5
+				if distanceTraveled == 0 :
+					self.times.append(self.TrajectoryUpdateWait)
+				else :
+					delTime = (distanceTraveled/self.speed)
+					self.times.append(self.times[len(self.times)-1]+delTime)
+					velocity = Vector3( (position.x - oldpos.x)/distanceTraveled * self.speed, (position.y - oldpos.y)/distanceTraveled * self.speed, self.zVel)
 				self.velocities.append(velocity)
 			else : #nothing, so just add zero
 				if self.lastPosition != None :
-					dt = ((position.x - self.lastPosition.x) **2 + (position.y - self.lastPosition.y)**2)**.5
-					velocity = Vector3((position.x-self.lastPosition.x)/dt *self.speed, (position.y-self.lastPosition.y)/dt * self.speed, 0)
+					dt = ((position.x - self.lastPosition.x) **2 + (position.y - self.lastPosition.y)**2+ (self.zDist - self.lastzDist)**2)**.5
+					velocity = Vector3((position.x-self.lastPosition.x)/dt *self.speed, (position.y-self.lastPosition.y)/dt * self.speed, self.zVel)
 				else :
-					velocity = Vector3( 0, 0, 0)
-				self.velocities.append(velocity)
+					velocity = Vector3( 0, 0, self.zVel)
 				self.times.append(0)
+				self.velocities.append(velocity)
+				
 			
+
 			self.positions.append(position)
-			
+			self.zVel = 0
+			self.lastzDist = self.zDist
 			if len(self.times) >= self.listLimit :
 				self.sendLiveFeed()
 			self.lastTrajectoryUpdate = rospy.Time.now().to_sec()
@@ -184,6 +195,27 @@ class MouseDraw() :
 		self.mouseY = event.y
 
 		self.resetTrajectoryData()
+
+
+
+	def on_mousewheelUp(self, event) :
+		print "MOUSE WHEEL UP"
+		self.zVel += .1
+		print self.zVel
+		if self.zVel > 0 :
+			self.zDist += .5 * (self.zVel**2)
+		else :
+			self.zDist -= .5 * (self.zVel**2)
+
+	def on_mousewheelDown(self, event) :
+		print "MOUSE WHEEL DOWN"
+		self.zVel -= .1
+		print self.zVel
+		if self.zVel > 0 :
+			self.zDist += .5 * (self.zVel**2)
+		else :
+			self.zDist -= .5 * (self.zVel**2)
+		print self.zDist
 
 
 
