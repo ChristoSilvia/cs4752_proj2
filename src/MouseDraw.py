@@ -26,25 +26,25 @@ class MouseDraw() :
 		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
 		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=50)
 
+		#constants
+		self.limb = 'left'
+		self.listLimit = 90
+		self.velocityFilterLength = 10
+		self.scale = .001
+		self.speed = .03 #in meters/second
+
+
 		self.mouseX = 0
 		self.mouseY = 0
 
-		self.limb = 'left'
-
-		self.listLimit = 90
-
-		self.velocityFilterLength = 10
 		self.VelocityFilter = []
-
 		self.times = []
 		self.velocities = []
 		self.positions = []
-
 		self.timeDisplacement = 0
 
 
-		self.scale = .001
-		self.speed = .03 #in meters/second
+		
 		
 		self.root = Tk()
 		self.canvas = Canvas(width=512, height=512, bg='white')
@@ -63,17 +63,27 @@ class MouseDraw() :
 		self.canvas.get_tk_widget().delete("all")
 
 	def sendLiveFeed(self) :
-		self.index = 0
 		traject = Trajectory()
 		traject.reference_frame = self.limb
 		traject.times = self.times
 		traject.positions = self.positions
 		traject.velocities =  self.velocities
-		self.plane_traj_pub.publish(traject)
-		self.velocities = []
-		self.times = []
 
-		self.positions = []
+		print "*****************************"
+		print "*****************************"
+		print "*****************************"
+		print traject.times
+		print "*****************************"
+		print traject.positions
+		print "*****************************"
+		print traject.velocities
+		print "*****************************"
+		print "*****************************"
+		print "*****************************"
+
+		self.plane_traj_pub.publish(traject)
+		
+		self.recycleTrajectoryMsgData()
 
 	def getAverageVelocity(self) :
 		mysum = [0,0]
@@ -83,6 +93,17 @@ class MouseDraw() :
 
 		return (mysum[0]/self.velocityFilterLength, mysum[1]/self.velocityFilterLength)
 	
+	#resets message data
+	def recycleTrajectoryMsgData(self) :
+		self.times = []
+		self.velocities = []
+		self.positions = []
+		self.timeDisplacement = 
+
+	#resets all 
+	def resetTrajectoryData(self) :
+		self.VelocityFilter = []
+		self.recycleTrajectoryData()
 
 
 	def MouseMotion(self, event) :
@@ -92,10 +113,13 @@ class MouseDraw() :
 		self.mouseX = event.x
 		self.mouseY = event.y
 
-		
-
 		self.VelocityFilter.append([delMouseX, delMouseY])
 		if len(self.VelocityFilter) > self.velocityFilterLength :
+
+			if not self.times :
+				print "RESETING TIME DISPLACEMENT"
+				self.timeDisplacement = rospy.Time.now().to_sec()
+
 			self.VelocityFilter.pop(0)
 
 			self.times.append(rospy.Time.now().to_sec()-self.timeDisplacement)
@@ -127,8 +151,10 @@ class MouseDraw() :
 		print "Click"
 		self.mouseX = event.x
 		self.mouseY = event.y
-		self.VelocityFilter = []
-		self.timeDisplacement = rospy.Time.now().to_sec()
+
+		resetTrajectoryData()
+
+
 
 	def OnMouseUp(self, event) :
 		if self.index > 0 :
