@@ -12,7 +12,7 @@ from copy import deepcopy
 import random
 from Tkinter import *
 
-meters_per_pixel = .001
+meters_per_pixel = .0007
 
 def loginfo(message):
     rospy.loginfo("MouseDraw: {0}".format(message))
@@ -28,11 +28,11 @@ class MouseDraw() :
 
 		#constants
 		self.limb = 'left'
-		self.listLimit = 90
+		self.listLimit = 20
 		self.velocityFilterLength = 10
 		self.scale = .001
 		self.speed = .03 #in meters/second
-
+		self.TrajectoryUpdateWait = .015
 
 		self.mouseX = 0
 		self.mouseY = 0
@@ -44,6 +44,9 @@ class MouseDraw() :
 		self.timeDisplacement = 0
 
 
+
+		self.lastTrajectoryUpdate = 0
+		
 		
 		
 		self.root = Tk()
@@ -69,41 +72,34 @@ class MouseDraw() :
 		traject.positions = self.positions
 		traject.velocities =  self.velocities
 
-		print "*****************************"
-		print "*****************************"
-		print "*****************************"
-		print traject.times
-		print "*****************************"
-		print traject.positions
-		print "*****************************"
-		print traject.velocities
-		print "*****************************"
-		print "*****************************"
-		print "*****************************"
+		#print self.times
 
 		self.plane_traj_pub.publish(traject)
 		
 		self.recycleTrajectoryMsgData()
 
 	def getAverageVelocity(self) :
+		actualLength = len(self.VelocityFilter) 
+		if self.velocityFilterLength != actualLength:
+			print "ERROR Velocity filter length is not equal to constant"
+
 		mysum = [0,0]
 		for v in self.VelocityFilter :
 			mysum[0] += v[0]
 			mysum[1] += v[1]
 
-		return (mysum[0]/self.velocityFilterLength, mysum[1]/self.velocityFilterLength)
+		return (mysum[0]/actualLength, mysum[1]/actualLength)
 	
 	#resets message data
 	def recycleTrajectoryMsgData(self) :
 		self.times = []
 		self.velocities = []
 		self.positions = []
-		self.timeDisplacement = 
 
 	#resets all 
 	def resetTrajectoryData(self) :
 		self.VelocityFilter = []
-		self.recycleTrajectoryData()
+		self.recycleTrajectoryMsgData()
 
 
 	def MouseMotion(self, event) :
@@ -113,33 +109,50 @@ class MouseDraw() :
 		self.mouseX = event.x
 		self.mouseY = event.y
 
+
+
 		self.VelocityFilter.append([delMouseX, delMouseY])
+
+		
 		if len(self.VelocityFilter) > self.velocityFilterLength :
-
-			if not self.times :
-				print "RESETING TIME DISPLACEMENT"
-				self.timeDisplacement = rospy.Time.now().to_sec()
-
 			self.VelocityFilter.pop(0)
+			if rospy.Time.now().to_sec() - self.lastTrajectoryUpdate > self.TrajectoryUpdateWait :
+				if not self.times :
+					print "RESETING TIME DISPLACEMENT"
+					self.timeDisplacement = rospy.Time.now().to_sec()
 
-			self.times.append(rospy.Time.now().to_sec()-self.timeDisplacement)
+				
 
-			averageDelta = self.getAverageVelocity()
-			mag = (averageDelta[0] **2 + averageDelta[1]**2)**.5
-			if mag > 0 :
-				velocity = Vector3( averageDelta[0]/mag * self.speed, averageDelta[1]/mag * self.speed, 0)
-			else :
-				velocity = Vector3(0,0,0)
-			print velocity
-			self.velocities.append(velocity)
+				#self.times.append(rospy.Time.now().to_sec()-self.timeDisplacement)
 
-			position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, 0)
-			self.positions.append(position)
-			
+				averageDelta = self.getAverageVelocity()
+				mag = (averageDelta[0] **2 + averageDelta[1]**2)**.5
+				if mag > 0 :
+					velocity = Vector3( averageDelta[0]/mag * self.speed, averageDelta[1]/mag * self.speed, 0)
+				else :
+					velocity = Vector3(0,0,0)
+				
 
-			if len(self.times) >= self.listLimit :
-				self.sendLiveFeed()
-			#print "root coordinates: %s/%s" % (event.x_root, event.y_root)
+				self.velocities.append(velocity)
+
+				position = Vector3(self.mouseX*self.scale, self.mouseY*self.scale, 0)
+				delTime = 0
+				if self.positions :
+					oldpos = self.positions[len(self.positions)-1]
+					distanceTraveled = ((position.x - oldpos.x) **2 + (position.y - oldpos.y)**2)**.5
+					delTime = (distanceTraveled/self.speed)
+				if self.times :
+					self.times.append(self.times[len(self.times)-1]+delTime)
+				else :
+					self.times.append(0)
+				self.positions.append(position)
+				
+
+
+				if len(self.times) >= self.listLimit :
+					self.sendLiveFeed()
+				self.lastTrajectoryUpdate = rospy.Time.now().to_sec()
+				#print "root coordinates: %s/%s" % (event.x_root, event.y_root)
 
 	def OnMouseScreenEnter(self, event) :
 		print "Mouse in Screen"
@@ -152,7 +165,7 @@ class MouseDraw() :
 		self.mouseX = event.x
 		self.mouseY = event.y
 
-		resetTrajectoryData()
+		self.resetTrajectoryData()
 
 
 
