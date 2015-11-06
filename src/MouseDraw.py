@@ -24,7 +24,7 @@ class MouseDraw() :
 
 		#rospy.wait_for_service("/move_end_effector_trajectory")
 		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
+		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=50)
 
 		#constants
 		self.limb = 'left'
