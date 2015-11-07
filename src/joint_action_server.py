@@ -23,25 +23,42 @@ class JointActionServer():
         rospy.init_node('joint_action_server')
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
+        # limb and joint parameters
         self.limb_name = limb_name
         self.limb = baxter_interface.Limb(limb_name)
         self.limb_kin = baxter_kinematics(limb_name)
         self.joint_names = self.limb.joint_names()
+        
+        # time discretization paramters
+        self.dt = 0.005
+        self.deriv_step = 1e-5
+        self.secondary_objective = True 
+
+        # secondary objective parameters
+        self.extra_motion_maximum = 0.05
+        self.extra_motion_multiple = 2.0
+        
+        # free-movement PID parameters
         self.kp = 0.01
         self.ki = 0.01
         self.kd = 0.0
-        self.dt = 0.005
-        self.extra_motion_maximum = 0.05
-        self.extra_motion_multiple = 2.0
-        self.pen_length = 0.165
-        self.deriv_step = 1e-5
-        self.secondary_objective = False 
+
+        # Whiteboard PID parameters
+        # normal direction
+        self.surface_normal = np.array([0.0, 0.0, 1.0])
+        # tangent
+        self.kp_tangent = 0.01
+        self.ki_tangent = 0.01
+        self.kd_tangent = 0.0
+        # normal
+        self.kp_normal = 0.01
+        self.ki_normal = 0.01
+        self.kd_normal = 0.0
+        
         
         self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
         loginfo("Initialized /move_end_effector_trajectory")
         self.move_tool_trajectory = rospy.Service('move_tool_trajectory', JointAction, self.move_tool_trajectory)
-        loginfo("Initialized /move_tool_trajectory")
-        self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
         loginfo("Initialized /end_effector_position")
         self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
         loginfo("Initialized /end_effector_velocity")
@@ -66,22 +83,11 @@ class JointActionServer():
         loginfo("After move_trajectory")
         return JointActionResponse()
 
-    def move_tool_trajectory(self, args):
-        times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
-        offset = self.get_tool_offset()
-        self.move_trajectory(times, x_positions_velocities - offset[0], 
-                                    y_positions_velocities - offset[1], 
-                                    z_positions_velocities - offset[2])
-
-        return JointActionResponse()
-
     def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
  
-        # add in derivatives
-        spline_order = 3
-        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=spline_order, direction=1)
-        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=spline_order, direction=1)
-        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=spline_order, direction=1)
+        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
+        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
+        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
         
         T = np.arange(0, times[-1], self.dt)
         n = len(T)
@@ -208,8 +214,6 @@ class JointActionServer():
         n = len(args.times)
 
         times_array = np.empty(n)
-        # times_array[0] = 0.0
-        # times_array[1:] = args.times
         times_array= args.times
         
         x_positions_velocities = np.empty((n, 2))
@@ -225,49 +229,8 @@ class JointActionServer():
             y_positions_velocities[i,1] = args.velocities[i].y
             z_positions_velocities[i,1] = args.velocities[i].z
 
-        
-        # first_pose = Pose()
-        # first_pose.orientation = deepcopy(self.limb.endpoint_pose()['orientation'])        
-        # first_pose.position = Point(
-        #     args.positions[0].x,
-        #     args.positions[0].y,
-        #     args.positions[0].z)
-
-        # MoveToPose(first_pose)
-        # rospy.sleep(2)
-
-        # current_velocity = self.get_velocity()
-        # x_positions_velocities[0,1] = current_velocity[0]
-        # y_positions_velocities[0,1] = current_velocity[1]
-        # z_positions_velocities[0,1] = current_velocity[2]
-        
-        
-        # current_position = self.get_position()
-        # x_positions_velocities[0,0] = current_position[0]
-        # y_positions_velocities[0,0] = current_position[1]
-        # z_positions_velocities[0,0] = current_position[2]
-
         return times_array, x_positions_velocities, y_positions_velocities, z_positions_velocities
     
-    def get_tool_offset(self):
-        off = np.dot(
-            quaternion_matrix(self.limb.endpoint_pose()['orientation']),
-            np.array([0,0,self.pen_length,1]).T)
-        off = off[:3]/off[3]
-        return off
-
-    def get_tool_position_response(self, args): 
-        position = self.get_position()
-        offset = self.get_tool_offset()
-        tool_pos = position + offset
-        # print "*************************************"
-        # print "offset"
-        # print offset
-        # print "*************************************"
-        return EndEffectorPositionResponse(Vector3(tool_pos[0],
-                                                   tool_pos[1],
-                                                   tool_pos[2]))
-
     def get_position_response(self, args):
         position = self.get_position()
         return EndEffectorPositionResponse(Vector3(position[0],position[1],position[2]))
@@ -283,21 +246,13 @@ class JointActionServer():
         return np.array(self.limb.endpoint_velocity()['linear'])
 
 def loginfo(message):
-    rospy.loginfo("Joint Action Server: {0}".format(message))
+    rospy.loginfo(message)
 
 def null(a, rtol=1e-5):
     # http://stackoverflow.com/questions/19820921/a-simple-matlab-like-way-of-finding-the-null-space-of-a-small-matrix-in-numpy
     u, s, v = np.linalg.svd(a)
     rank = (s > rtol*s[0]).sum()
     return rank, v[rank:].T.copy()
-
-def closest_between_two_lines(a,b,c,d):
-    # if \vec{a} s + \vec{b} and \vec{c} t + \vec{d} are lines, this returns the point in the
-    #   first line which is closest to the second line
-    A = np.array([[np.dot(a,a), -np.dot(c,a)],[-np.dot(c,a), np.dot(c,c)]])
-    b = np.array([[- np.dot(a,b) + np.dot(d, a)/2.0],[- np.dot(c,d) + np.dot(c, b)/2]])
-    s_optimal = np.linalg.solve(A,b)[0]
-    return a * s_optimal + b
 
 def maximize_cosine_constrained(a,b,c,n2):
     # same as maximize_cosine but the result should have norm no greater than n^2
