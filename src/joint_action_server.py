@@ -10,7 +10,7 @@ from std_msgs.msg import *
 from geometry_msgs.msg import *
 import baxter_interface
 from baxter_interface import CHECK_VERSION
-from baxter_core_msgs.msg import *
+from baxter_core_msgs.msg import * #(SolvePositionIK, SolvePositionIKRequest)
 from baxter_core_msgs.srv import *
 from baxter_interface import *
 from baxter_pykdl import baxter_kinematics
@@ -30,12 +30,12 @@ class JointActionServer():
         self.kp = 0.01
         self.ki = 0.01
         self.kd = 0.0
-        self.dt = 0.015
+        self.dt = 0.005
         self.extra_motion_maximum = 0.05
         self.extra_motion_multiple = 2.0
         self.pen_length = 0.165
         self.deriv_step = 1e-5
-        self.secondary_objective = False
+        self.secondary_objective = False 
         
         self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
         loginfo("Initialized /move_end_effector_trajectory")
@@ -57,6 +57,7 @@ class JointActionServer():
         self.kd = args.kd
         self.extra_motion_multiple = args.emmult
         self.extra_motion_maximum = args.emmax
+        return SetParametersResponse()
 
     def move_end_effector_trajectory(self, args):
         times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
@@ -85,73 +86,83 @@ class JointActionServer():
         T = np.arange(0, times[-1], self.dt)
         n = len(T)
 
-        # #################### ERROR IN HERE ####################
-        # plt.scatter(times, x_positions_velocities[:,0])
-        # plt.scatter(times, y_positions_velocities[:,0])
-        # plt.scatter(times, z_positions_velocities[:,0])
-        # plt.plot(T,xinterpolator(T))
-        # plt.plot(T,yinterpolator(T))
-        # plt.plot(T,zinterpolator(T))
-        # plt.show()
-
-        # plt.plot(xinterpolator(T),yinterpolator(T))
-        # plt.show()
-        # #################### ERROR IN HERE ####################
-
         velocity_and_w = np.zeros(6)
         velocity_and_w[0] = xinterpolator.derivative(T[0])
         velocity_and_w[1] = yinterpolator.derivative(T[0])
         velocity_and_w[2] = zinterpolator.derivative(T[0])
+
+        precomputed_positions = np.empty((3,n))
+        precomputed_positions[0,:] = xinterpolator(T)
+        precomputed_positions[1,:] = yinterpolator(T)
+        precomputed_positions[2,:] = zinterpolator(T)
+
+        precomputed_velocities = np.empty((3,n))
+        precomputed_velocities[0,:] = xinterpolator.derivative(T)
+        precomputed_velocities[1,:] = yinterpolator.derivative(T)
+        precomputed_velocities[2,:] = zinterpolator.derivative(T)
+
+        errors = np.empty((3,n))
+        errors[:,0] = np.zeros(3)
+
         vx_corrector, vy_corrector, vz_corrector = 0.0, 0.0, 0.0
         last_vx_corrector, last_vy_corrector, last_vz_corrector = 0.0, 0.0, 0.0
         vx_integral, vy_integral, vz_integral = 0.0, 0.0, 0.0
+
         for i in xrange(1,n):
             t_start = rospy.get_time()
             self.limb.set_joint_velocities(
                 self.make_joint_dict(
                     self.get_joint_velocities(velocity_and_w)))
-            
-            position = self.get_position()
-            vx_corrector = xinterpolator(T[i]) - position[0]
-            vy_corrector = yinterpolator(T[i]) - position[1]
-            vz_corrector = zinterpolator(T[i]) - position[2]
-            vx_integral += vx_corrector * (T[i] - T[i-1])
-            vy_integral += vy_corrector * (T[i] - T[i-1])
-            vz_integral += vz_corrector * (T[i] - T[i-1])
-            vx_derivative = (vx_corrector - last_vx_corrector)/(T[i] - T[i-1])
-            vy_derivative = (vy_corrector - last_vy_corrector)/(T[i] - T[i-1])
-            vz_derivative = (vz_corrector - last_vz_corrector)/(T[i] - T[i-1])
 
-            velocity_and_w[0] = xinterpolator.derivative(T[i]) + self.kp * vx_corrector + self.ki * vx_integral - self.kd * vx_derivative
-            velocity_and_w[1] = yinterpolator.derivative(T[i]) + self.kp * vy_corrector + self.ki * vy_integral - self.kd * vy_derivative
-            velocity_and_w[2] = zinterpolator.derivative(T[i]) + self.kp * vz_corrector + self.ki * vz_integral - self.kd * vz_derivative
+            time_interval = T[i] - T[i-1]           
+ 
+            position = self.get_position()
+            vx_corrector = precomputed_positions[0,i] - position[0]
+            vy_corrector = precomputed_positions[1,i] - position[1]
+            vz_corrector = precomputed_positions[2,i] - position[2]
+            vx_integral += vx_corrector * time_interval
+            vy_integral += vy_corrector * time_interval
+            vz_integral += vz_corrector * time_interval
+            vx_derivative = (vx_corrector - last_vx_corrector)/time_interval
+            vy_derivative = (vy_corrector - last_vy_corrector)/time_interval
+            vz_derivative = (vz_corrector - last_vz_corrector)/time_interval
+
+            velocity_and_w[0] = precomputed_velocities[0,i] + self.kp * vx_corrector + self.ki * vx_integral - self.kd * vx_derivative
+            velocity_and_w[1] = precomputed_velocities[1,i] + self.kp * vy_corrector + self.ki * vy_integral - self.kd * vy_derivative
+            velocity_and_w[2] = precomputed_velocities[2,i] + self.kp * vz_corrector + self.ki * vz_integral - self.kd * vz_derivative
 
             last_vx_corrector = vx_corrector
             last_vy_corrector = vy_corrector
             last_vz_corrector = vz_corrector
+
+            errors[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
  
-            desired_interval = T[i] - T[i-1]
-            end_time = T[i] - T[i-1] + t_start
-            loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, T[i] -T[i-1]))
+            end_time = time_interval + t_start
+            loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, time_interval))
             rospy.sleep(end_time - rospy.get_time())
 
         loginfo("exit_control_mode")
    
         self.limb.exit_control_mode()     
+  
+        A = np.empty((n,4))
+        A[:,0] = T
+        A[:,1:] = errors.T
+        paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/errors-{0}.csv".format(paramtext),A)
+        loginfo("saved errors")
 
     def get_manipulability(self):
         jacobian = self.limb_kin.jacobian()
         return np.sqrt(np.dot(jacobian,jacobian.T))
 
     def get_joint_velocities(self, workspace_velocity_and_w):
-        Jplus = np.asarray(self.limb_kin.jacobian_pseudo_inverse())
+        J = np.asarray(self.limb_kin.jacobian())
+        Jplus = np.linalg.pinv(J)
         if not self.secondary_objective:
             return np.dot(Jplus, workspace_velocity_and_w)
         else:
-            J = self.limb_kin.jacobian()
-            
             rank, nullspace = null(J)
-            assert(rank == 6, "Jacobian is Singular")
             Jb = np.empty(7)
             for i in xrange(7):
                 Jb[i] = nullspace[i,0]
