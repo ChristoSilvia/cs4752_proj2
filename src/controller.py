@@ -187,7 +187,7 @@ class controller() :
 
     def plane_poseCb(self,plane_pose_msg):
         pp = plane_pose_msg.position
-        wp = self.PlaneToBasePoint(p.x,p.y,p.z)
+        wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z)
         base_pose = Pose()
         base_pose.position = Vector3(wp[0],wp[1],wp[2])
         success = move_robot(MOVE_TO_POSE, "left", homepose)

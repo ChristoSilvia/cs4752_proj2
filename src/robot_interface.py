@@ -92,7 +92,7 @@ class RobotInterface():
             rospy.loginfo("Trying to Move To Pos")
             hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
             new_pose = deepcopy(hand_pose)
-            new_pose.position = req.pose.position
+            new_pose.position = deepcopy(req.pose.position)
             success = self.MoveToPose(req.limb, new_pose, "FAILED MoveToPose")
 
         else :

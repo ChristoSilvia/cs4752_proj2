@@ -9,8 +9,8 @@ import glob
 # files = filter(os.path.isfile, glob.glob('*.csv'))
 # files.sort(key=lambda x: os.path.getmtime(x))
 # print files[:3]
-import tkinter as tk
-from tkinter import filedialog
+import Tkinter as tk
+from Tkinter import *
 
 root = tk.Tk()
 root.withdraw()
