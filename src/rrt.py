@@ -3,6 +3,10 @@ import numpy as np
 #from scipy.spatial import KDTree
 #from scipy.spatial import distance
 import scipy
+from scipy import spatial
+from scipy.spatial import distance
+from scipy.spatial.distance import euclidean
+from scipy.spatial import KDTree 
 
 import rospy
 from cs4752_proj2.srv import *
@@ -15,7 +19,7 @@ from baxter_pykdl import baxter_kinematics
 from tf.transformations import *
 from copy import deepcopy
 import random
-from collision_checker.srv import CheckCollision, CheckCollisionRequest
+from collision_checker.srv import CheckCollision
 
 
 
@@ -83,13 +87,12 @@ class Buffered_KD_Tree :
 		
 
 	def Nearest_Neighbor(self, p) :
-		
 
 		closest_dist = 100000000
 		closest_point = None
 		for point in self.buffer :
 			#this_dist = np.distance(point, p)
-			this_dist = distance.euclidean(point,p)
+			this_dist = scipy.spatial.distance.euclidean(point,p)
 			if this_dist < closest_dist :
 				closest_buffer_dist = this_dist
 				closest_point = point
@@ -167,6 +170,11 @@ class rrt() :
 		baxter_interface.RobotEnable(CHECK_VERSION).enable()
 		loginfo("Initialized rrt Node")
 
+		self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+		loginfo("Initialized /check collision")
+		rospy.wait_for_service('/check_collision')
+		loginfo("Finished waiting for /check collision")
+
 		self.limb = 'left'
 		self.hand_pose = None
 
@@ -189,9 +197,12 @@ class rrt() :
 				loginfo("INVALID QF TRYING NEW SAMPLE")
 				qf = sample_cspace()
 
-			path = self.RRT_Connect_Planner(qi, qf, 10000000)
-			path = simplify_path(path, len(path)/2)
-			self.MoveAlongPath(path)
+			path = self.RRT_Connect_Planner(qi, qf, 5000)
+			if path :
+				path = simplify_path(path, len(path)/2)
+				self.MoveAlongPath(path)
+			else :
+				print "FAILED TO FIND PATH"
 
 		rospy.spin()
 
@@ -205,21 +216,13 @@ class rrt() :
 			arm.set_joint_positions(this_p)
 
 	def Check_Point(self, p) :
-		#collision_check_req = CheckCollisionRequest()
-		#collision_check_req.arm = String('left')
-		#collision_check_req.config = list(p)
-		loginfo("Initializing /check collision")
-		rospy.wait_for_service('/check_collsion')
-		try :
-			collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
 		
-			loginfo("Initialized /check collision")
-
-			arm = String(self.limb)
-			res = collision_checker(arm, list(p))
-			loginfo("received service reponse")
+		try :
+			arm = String('left')
+			res = self.collision_checker(arm, list(p))
 			return res.collision
 		except rospy.ServiceException, e:
+			loginfo("FAILED IN CHECK POINT")
 			print "Service call failed: %s"%e
 			return False
 
@@ -234,7 +237,7 @@ class rrt() :
 
 			#point lerp is less efficient than possible because i am finding the vector between them 
 			#during each call	
-			p = PointLerp(p, p2, .1) #roughly 6 degrees of rotation total
+			p = PointLerp(p, p2, .007) #roughly 6 degrees of rotation total
 		return True
 
 	#given an initial and final array of joints, it will find a path to there
@@ -249,10 +252,9 @@ class rrt() :
 		path_b = []
 		path_b.append((None,qgoal))
 
-		delta = .15 #delta step to random point
+		delta = .003 #delta step to random point
 
 		for i in xrange(0,k) : #might change to while
-			print ""
 			#print "NEW ITERATION"
 			qrand = sample_cspace()
 
@@ -281,7 +283,7 @@ class rrt() :
 			#print "-----"
 			#do collision check between qnew and qnear
 			if self.Check_Line(qnear,qnew) :
-
+				
 				#valid so add to tree
 
 				if i%2 == 1 : #add to end
@@ -292,8 +294,8 @@ class rrt() :
 					#print nearest_solution
 					#print "-----"
 					
-					end_distance = distance.euclidean(qnew, nearest_solution)
-					print "Distance to Solution"
+					end_distance = scipy.spatial.distance.euclidean(qnew, nearest_solution)
+					print "at %d Distance to Solution"%i
 					print end_distance
 					#check if qnear is close enough to opposite tree
 					if self.Check_Line(nearest_solution,qnew) :
@@ -310,7 +312,7 @@ class rrt() :
 					path_a.append((qnear,qnew))
 					nearest_solution = Tb.Nearest_Neighbor(qnew)
 					
-					end_distance = distance.euclidean(qnew, nearest_solution)
+					end_distance = scipy.spatial.distance.euclidean(qnew, nearest_solution)
 					print "Distance to Solution"
 					print end_distance
 					if self.Check_Line(nearest_solution,qnew) :
