@@ -2,6 +2,7 @@
 import numpy as np
 import rospy
 from cs4752_proj2.srv import *
+from config import *
 
 from std_msgs.msg import String
 from geometry_msgs.msg import Vector3
@@ -23,10 +24,10 @@ class MouseDraw() :
 		#rospy.wait_for_service("/move_end_effector_trajectory")
 		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
 		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
-		self.plane_pose_pub = rospy.Publisher('/plane_pose', Pose, queue_size=10)
-
 		rospy.wait_for_service("/move_robot")
 		self.move_robot = rospy.ServiceProxy("/move_robot", MoveRobot)
+		rospy.wait_for_service("/move_robot_plane")
+		self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
 		loginfo("Initialized service proxy for /move_robot")
 
 		#constants
@@ -200,12 +201,17 @@ class MouseDraw() :
 	def OnMouseDown(self, event) :
 		self.mouseX = event.x
 		self.mouseY = event.y
-		pose = Pose()
-		pose.position.x = self.mouseX*self.scale
-		pose.position.y = self.mouseY*self.scale
-		pose.position.z = self.zDist
-		self.plane_pose_pub(pose)
-		rospy.sleep(3)
+
+		mr = MoveRobot()
+		mr.action = MOVE_TO_POS
+		mr.limb = String('left')
+		mr.pose = Pose()
+		mr.pose.position = Position()
+		mr.pose.position.x = self.mouseX*self.scale
+		mr.pose.position.y = self.mouseY*self.scale
+		mr.pose.position.z = self.zDist
+		self.move_robot_plane(mr)
+
 
 		self.resetTrajectoryData()
 
