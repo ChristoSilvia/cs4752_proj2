@@ -22,11 +22,18 @@ class controller() :
     def __init__(self):
         rospy.init_node('controller')
         loginfo("Initialized node Controller")
+
+        rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
+        rospy.Subscriber("/plane_pose", Pose, self.plane_poseCb, queue_size=20)
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
         self.left = baxter_interface.Limb('left')
         self.left_kin = baxter_kinematics('left')
+
+        rospy.wait_for_service("/move_robot")
+        self.move_robot = rospy.ServiceProxy("/move_robot", MoveRobot)
+        # loginfo("Initialized service proxy for /move_robot")
 
         rospy.wait_for_service("/move_end_effector_trajectory")
         self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
@@ -45,7 +52,6 @@ class controller() :
         self.calibrated_plane = False
         # self.calibrate_plane()
 
-        rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
 
         rate = rospy.Rate(30)
         while not rospy.is_shutdown():
@@ -174,6 +180,17 @@ class controller() :
         base_dir.reshape((1, 3))
         # print "base_dir: {0}".format(base_dir)
         return base_dir
+
+    # def PlaneToBaseOrientation(self, plane_x,plane_y,plane_z,plane_w):
+    #     self.transform_setup()
+    #     plane_orientation = quaternion_matrix([plane_x,plane_y,plane_z,plane_w])
+
+    def plane_poseCb(self,plane_pose_msg):
+        pp = plane_pose_msg.position
+        wp = self.PlaneToBasePoint(p.x,p.y,p.z)
+        base_pose = Pose()
+        base_pose.position = Vector3(wp[0],wp[1],wp[2])
+        success = move_robot(MOVE_TO_POSE, "left", homepose)
 
     def plane_trajCb(self, plane_traj_msg):
         self.got_plane_traj = True
