@@ -17,6 +17,7 @@ from baxter_pykdl import baxter_kinematics
 from cs4752_proj2.srv import *
 from tf.transformations import *
 from copy import deepcopy
+from datetime import datetime
 
 class JointActionServer():
     def __init__(self, limb_name='left'):
@@ -172,30 +173,33 @@ class JointActionServer():
         self.limb.exit_control_mode()     
   
         paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
+        # date = ""
+        date = str(datetime.now())
+        folder = "tests"
         A = np.empty((n,4))
         A[:,0] = T
         A[:,1:] = actual_positions.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/actual-positions-{0}.csv".format(paramtext),A)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}actual-positions-{0}.csv".format(paramtext,date,folder),A)
         B = np.empty((n,4))
         B[:,0] = T
         B[:,1:] = precomputed_positions.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/precomputed-positions-{0}.csv".format(paramtext),B)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
         C = np.empty((n,4))
         C[:,0] = T
         C[:,1:] = corrector_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),C)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),C)
         D = np.empty((n,4))
         D[:,0] = T
         D[:,1:] = proportional_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),D)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),D)
         E = np.empty((n,4))
         E[:,0] = T
         E[:,1:] = integral_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),E)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}vcorrector-velocities-{0}.csv".format(paramtext,date,folder),E)
         F = np.empty((n,4))
         F[:,0] = T
         F[:,1:] = derivative_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),F)
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),F)
         loginfo("saved errors")
 
     def get_manipulability(self):
