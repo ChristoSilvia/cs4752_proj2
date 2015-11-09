@@ -1,289 +1,170 @@
 #!/usr/bin/env python
-# liscense removed for brevity
-
-import numpy as np
-from scipy.spatial import KDTree
-from scipy.interpolate import PiecewisePolynomial
-
 import rospy
+import numpy as np
+from std_msgs.msg import *
+from geometry_msgs.msg import *
 from cs4752_proj2.srv import *
-import baxter_interface
-from baxter_interface import CHECK_VERSION
-from baxter_pykdl import baxter_kinematics
+from cs4752_proj2.msg import *
+from baxter_core_msgs.msg import *
+from baxter_core_msgs.srv import *
+from baxter_interface import *
+from config import *
+from copy import deepcopy
 from tf.transformations import *
 
+class RobotInterface():
+    def __init__(self):
+        rospy.init_node('position_control')
+        rospy.loginfo("Initialized Position Control")
 
-
-# FIXED PARAMETERS
-joint_names = ['left_s0','left_s1','left_e0','left_e1','left_w0','left_w1','left_w2']
-
-joint_limits = np.array([[-2.461, 0.890],
-                         [-2.147, 1.047],
-                         [-3.028, 3.028],
-                         [-0.052, 2.618],
-                         [-3.059, 3.059],
-                         [-1.571, 2.094],
-                         [-3.059, 3.059]])
-n_dof = 7
-
-plane_norm = np.array([0,0,0])
-plane_origin = np.array([0,0,0])
-plane_rotation = np.empty([3,3])
-
-############
-
-# VARIABLE PARAMETERS
-kdtree_leafsize = 10
-n_points = 100000
-limb = 'left'
-############
-
-global kdtree
-
-def calibrate_plane() :
-    point_count = 0
-    point_pos = []
-    global left, plane_norm, plane_origin, plane_rotation
-    while point_count < 3 :
-        prompt = "Press Any Key when Arm is on the %d plane point" % point_count
-        cmd = raw_input(prompt)
-        point_pos.append(np.array(left.endpoint_pose()['position']))
-        # print point_pos[point_count]
-        point_count += 1
-
-    vec1 = point_pos[1] - point_pos[0]
-    vec2 = point_pos[2] - point_pos[0]
-    plane_norm = np.cross(vec1, vec2)
-    plane_origin = np.average(point_pos, axis=0)
-    # print "Finished Calibrating Plane"
-    # print plane_norm
-    # print plane_origin
-
-    #need transform to make norm the z vector
-    #def rotation_matrix(angle, direction, point=None):
-    #Return matrix to rotate about axis defined by point and direction.
-
-    x_plane = vec1/np.linalg.norm(vec1)
-    y_plane = np.cross(vec1, plane_norm)
-    y_plane = y_plane/np.linalg.norm(y_plane)
-    z_plane = plane_norm/np.linalg.norm(plane_norm)
-    plane_rotation = np.array([x_plane, y_plane, z_plane])
-    # print plane_rotation
-
-def PlaneToBase(plane_x,plane_y) :
-    global left, plane_norm, plane_origin, plane_rotation
-
-    translate = [plane_origin[0],plane_origin[1],plane_origin[2]]
-    T = numpy.identity(4)
-    T[:3, 3] = translate[:3]
-
-    R = np.append(plane_rotation,[[0,0,0]],axis=0)
-    R = np.append(R,[[0],[0],[0],[1]],axis=1)
-    # print R
-
-    M = np.dot(T, R)
-
-    plane_coords = np.array([plane_x,plane_y,0,1])
-    base_coords = np.dot(M, plane_coords.T)
-    print "base_coords: {0}".format(base_coords)
-    # print base_coords
-
-
-def loginfo(infostring):
-    rospy.loginfo("Robot Interface: {0}".format(infostring))
-
-def sample_cspace():
-    return joint_limits[:,0] + (joint_limits[:,1] - joint_limits[:,0]) * np.random.rand(7)
-
-def sample_cspace_response(req):
-    loginfo("Recieved Sample CSpace Query")
-    points = sample_cspace()
-    loginfo("Will return: {0}".format(points))
-    return SampleCSpaceResponse(points)
-
-def nearest_neighbor_response(req):
-    loginfo("Recieved Nearest Neighbor Query")
-    distance, nearest_point_index = kdtree.query(np.array(req.point))
-    return NearestNeighborResponse(kdtree.data[nearest_point_index,:])
-
-def get_joint_velocities(workspace_velocity):
-    global left_kin
-    jacobian_pinv = left_kin.jacobian_pseudo_inverse()
-    loginfo(null(jacobian_pinv))
-    return np.dot(jacobian_pinv, workspace_velocity)
-
-def moveto(final_position, speed):
-    global left
-    loginfo("Recieved Move Order")
-    dt = 0.05
-    dx = 0.0001
-    velocities = {}
-    current_position = np.array(left.endpoint_pose()['position'])
-    left.set_command_timeout(3*dt)
-    
-    while np.linalg.norm(current_position - final_position) < dx:
-        t_start = rospy.get_time()
-        loginfo("Starting new movement loop")
-        total_distance = np.linalg.norm(final_position - current_position)
-    	velocity = speed * (final_position - current_position) / total_distance
-        velocity_and_angular_momentum = np.zeros((6,1))
-        velocity_and_angular_momentum[0:3,0] = velocity
-        joint_velocities = get_joint_velocities(velocity_and_angular_momentum)
-        for i, name in enumerate(joint_names):
-            velocities[name] = joint_velocities[i,0]
-        left.set_joint_velocities(velocities)
-        rospy.sleep(dt - (rospy.get_time() - t_start))
-    left.exit_control_mode()
-
-def moveto_proportional(final_position, speed):
-    global left
-#    loginfo("Recieved Move Order")
-    dt = 0.005
-    kp = 0.004*speed
-    velocities = {}
-    initial_position = np.array(left.endpoint_pose()['position'])
-#    loginfo("Current Position: {0}".format(initial_position))
-    total_distance = np.linalg.norm(initial_position - final_position)
-#    loginfo("Distance to Target: {0}".format(total_distance))
-    total_time = total_distance / speed
-#    loginfo("Expected Time at Desired Speed: {0}".format(total_time))
-    velocity = speed * (final_position - initial_position) / total_distance
-#    loginfo("Expected End Effector Velocity")
-    left.set_command_timeout(3*dt)
-
-    for t in np.arange(0, total_time, dt):
-        t_start = rospy.get_time()
-        # Compute difference between where we should be and
-	#   where we are
-	current_position = np.array(left.endpoint_pose()['position'])
-        desired_position = initial_position + (t/total_time)*(final_position - initial_position)
-        current_error = current_position - desired_position
-#        loginfo("Current position: {0}".format(current_position))
-#        loginfo("Desired position: {0}".format(desired_position))
-#        loginfo("Current error: {0}".format(current_error))
-
-        # Subtract kp times from the current velocity.
-        velocity -= kp * current_error
-  
-        # prepare velocity and angular momentum vector
-        velocity_and_angular_momentum = np.zeros((6,1))
-        velocity_and_angular_momentum[0:3,0] = velocity
- 
-        # solve pseudoinverse
-        joint_velocities = get_joint_velocities(velocity_and_angular_momentum)
-
-        # assemble joint velocities dict and execute command
-        for i, name in enumerate(joint_names):
-            velocities[name] = joint_velocities[i,0]
-        left.set_joint_velocities(velocities)
-
-        # wait until next timestep
-        extra_time =dt - (rospy.get_time() - t_start)
-#        loginfo("{0} sec left over".format(extra_time))
-        rospy.sleep(extra_time)
-    left.exit_control_mode()
-
-def moveto_blind(final_position, speed):
-    global left
-    loginfo("Recieved Move Order")
-    dt = 0.005
-    velocities = {}
-    current_position = np.array(left.endpoint_pose()['position'])
-    loginfo("Current Position: {0}".format(current_position))
-    total_distance = np.linalg.norm(current_position - final_position)
-    loginfo("Distance to Target: {0}".format(total_distance))
-    total_time = total_distance / speed
-    loginfo("Expected Time at Desired Speed: {0}".format(total_time))
-    velocity = speed * (final_position - current_position) / total_distance
-    loginfo("Expected End Effector Velocity")
-    left.set_command_timeout(3*dt)
-    for t in np.arange(0, total_time, dt):
-        t_start = rospy.get_time()
-        velocity_and_angular_momentum = np.zeros((6,1))
-        velocity_and_angular_momentum[0:3,0] = velocity
-        joint_velocities = get_joint_velocities(velocity_and_angular_momentum)
-        for i, name in enumerate(joint_names):
-            velocities[name] = joint_velocities[i,0]
-        left.set_joint_velocities(velocities)
-        extra_time =dt - (rospy.get_time() - t_start)
-        loginfo("{0} sec left over".format(extra_time))
-        rospy.sleep(extra_time)
-
-def move_position_trajectory_blind(trajectory, total_time):
-    """Trajectory is a three-row n-column array of
-	workspace positions"""
-    global left
-    full_trajectory = np.empty(length(trajectory)+1)
-    full_trajectory[0] = left.endpoint_pose()['position']
-    full_trajectory[1:] = trajectory
-    space_differences = np.linalg.norm(full_trajectory[1:] - full_trajectory[:-1], axis=0)
-    trajectory_times = total_time * (space_differences / np.sum(space_differences))
-    dt = 0.05
-    spline_order = 3
-    T = np.arange(0, total_time, dt)
-    n = length(T)
-    interpolator = PiecewisePolynomial(trajectory_times, full_trajectory, order=spline_order, direction=1)
-    
-    for i in xrange(0,n):
-        t_start = rospy.get_time()
+        rospy.loginfo("Beginning to enable robot")
+        self.baxter = RobotEnable()
+        rospy.loginfo("Enabled Robot")
         
-        velocity_and_w = np.zeros((6,1))
-        velocity_and_w[0:2] = interpolator.derivative(T[i]) 
+        self.hand_pose_left = Pose()
+        self.hand_pose_right = Pose()
         
-         
+        self.gripper_left = Gripper('left')
+        self.gripper_right = Gripper('right')
 
-def robot_interface():
-    global kdtree
-    global left
-    global left_kin
-    rospy.init_node('robot_interface')
-    loginfo("Initialized Robot Interface")
+        rospy.Subscriber("/robot/limb/left/endpoint_state", EndpointState, self.respondToEndpointLeft)
+        rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self.respondToEndpointRight)
+        
+        move_robot_service = rospy.Service('/move_robot', MoveRobot, self.handle_move_robot)
 
-    loginfo("Beginning to initialize Sampler Service")
-    sampler = rospy.Service('sampler', SampleCSpace, sample_cspace_response)
-    loginfo("Sampler Service initialized")
+        try :
+            rospy.loginfo("Initializing service proxy for /SolvePositionIK...")
+            ns = "ExternalTools/left/PositionKinematicsNode/IKService"
+            rospy.wait_for_service(ns, 5.0)
+            self.iksvc_left = rospy.ServiceProxy(ns, SolvePositionIK)
+            ns = "ExternalTools/right/PositionKinematicsNode/IKService"
+            rospy.wait_for_service(ns, 5.0)
+            self.iksvc_right = rospy.ServiceProxy(ns, SolvePositionIK)
+            rospy.loginfo("Initialized service proxy for /SolvePositionIK...")
+        except rospy.ServiceException, e:
+            rospy.logerr("Service Initializing Failed: {0}".format(e))
 
-    loginfo("Beginning to sample {0} random points".format(n_points))
-    input_array = np.empty((n_points, n_dof))
-    for i in xrange(0,n_points):
-        input_array[i,:] = sample_cspace()
-    kdtree = KDTree(input_array, leafsize=kdtree_leafsize)
+        print "Ready to move robot."
 
-    loginfo("Beginning to initialize Nearest Neighbor Service")
-    nearest = rospy.Service('nearest', NearestNeighbor, nearest_neighbor_response)
-    loginfo("Initialized Nearest Neighbor Service")
+        rospy.spin()
 
-    baxter_interface.RobotEnable(CHECK_VERSION).enable()
+    # def HomePose(self) :
+    #     rospy.loginfo("Going to Home Pose")
+    #     homepose = Pose()
+    #     homepose.position = Point(0.572578886689,0.181184911298,0.146191403844)
+    #     homepose.orientation = Quaternion(0.140770659119,0.989645234506,0.0116543447684,0.0254972076605)
+    #     success = MoveToPose(homepose, False, False, False)
+    #     rospy.loginfo("Got to Home Pose : %r", success)
 
-    left = baxter_interface.Limb('left')
-    left_kin = baxter_kinematics('left')
+    def respondToEndpointLeft(self, EndpointState) :
+        self.hand_pose_left = deepcopy(EndpointState.pose)
 
-    calibrate_plane()
-    global plane_rotation
-    print plane_rotation
+    def respondToEndpointRight(self, EndpointState) :
+        self.hand_pose_right = deepcopy(EndpointState.pose)
 
-    print "################# PlaneToBase(0,0): #################"
-    print PlaneToBase(0,0)
-    print "################# PlaneToBase(10,10): #################"
-    print PlaneToBase(10,10)
+    def handle_move_robot(self, req):
+        success = True
+        gripper = self.gripper_left if req.limb == 'left' else self.gripper_right
 
-    # n_iterations = 10
-    # errors = np.empty(n_iterations)
-    # initial_pose = np.array(left.endpoint_pose()['position'])
-    # loginfo("Beginning Error Evaluation")
-    # for i in xrange(0,n_iterations):
-    #     desired_pose = initial_pose + (0.3*np.random.rand(3) - 0.15)
-    #     moveto_proportional(desired_pose, 0.05)
-    #     rospy.sleep(0.1)
-    #     error = desired_pose - left.endpoint_pose()['position']
-    #     loginfo("Error: {0}".format(np.linalg.norm(error)))
-    #     errors[i] = np.linalg.norm(error)
-    # loginfo("Mean Error: {0}".format(np.mean(errors)))
+        if req.action == OPEN_GRIPPER:
+            rospy.loginfo("Beginning to open gripper")
+            # rospy.sleep(GRIPPER_WAIT)
+            gripper.open(block=True)
+            # rospy.sleep(GRIPPER_WAIT)
+            rospy.loginfo("Opened Gripper")
 
-    rospy.spin()
+        elif req.action == CLOSE_GRIPPER :
+            rospy.loginfo("Beginning to close Gripper")
+            # rospy.sleep(GRIPPER_WAIT)
+            gripper.close(block=True)
+            # rospy.sleep(GRIPPER_WAIT)
+            rospy.loginfo("Closed Gripper")
+
+        elif req.action == MOVE_TO_POSE_INTERMEDIATE :
+            rospy.loginfo("Trying to Move To Pose")
+            success = self.MoveToPoseWithIntermediate(req.limb, req.pose)
+
+        elif req.action == MOVE_TO_POSE :
+            rospy.loginfo("Trying to Move To Pose")
+            success = self.MoveToPose(req.limb, req.pose, "FAILED MoveToPose")
+
+        else :
+            print "invalid action"
+
+        return MoveRobotResponse(success)
+
+    def MoveToPoseWithIntermediate(self, limb, pose, inter1=False, inter2=False, inter3=False) :
+        hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
+        if inter1 :
+            interpose1 = self.getOffsetPose(hand_pose, .05)
+            b1 = self.MoveToPose(limb, interpose1, "FAILED MoveToIntermediatePose")
+        if inter2 :
+            interpose2 = self.getOffsetPose(pose, .05)
+            b2 = self.MoveToPose(limb, interpose2, "FAILED MoveToIntermediatePose")
+        if inter3 :
+            interpose2 = self.getOffsetPose(pose, .01)
+            b3 = self.MoveToPose(limb, interpose2, "FAILED MoveToRightAbovePose")
+
+        self.MoveToPose(limb, pose, "FAILED MoveToPose")
+
+    def MoveToPose(self, limb, pose, err) :
+        joint_solution = self.inverse_kinematics(limb, pose)
+        if joint_solution != [] :
+            self.moveArm(limb, joint_solution)
+            # rospy.sleep(MOVE_WAIT)
+            return True
+        else :
+            rospy.logerr(err)
+            return False
+
+    def getOffsetPose(self, pose, offset) :
+        offsetpose = deepcopy(pose)
+        q = pose.orientation
+        off = np.dot(
+            quaternion_matrix([q.x,q.y,q.z,q.w]),
+            np.array([0,0,-offset,1]).T)
+        off = off[:3]/off[3]
+        offsetpose.position.x += off[0]
+        offsetpose.position.y += off[1]
+        offsetpose.position.z += off[2]
+        return offsetpose
+
+    def moveArm (self, limb, joint_solution) :
+        arm = Limb(limb)
+        arm.move_to_joint_positions(joint_solution)
+        rospy.sleep(0.01)
+
+    def inverse_kinematics(self, limb, ourpose) :
+        ikreq = SolvePositionIKRequest()
+
+        hdr = Header(stamp=rospy.Time.now(), frame_id='base')
+        poses = {
+            limb : PoseStamped(
+                header = hdr,
+                pose = ourpose
+            ),
+        }         
+        ikreq.pose_stamp.append(poses[limb])
+
+        iksvc = self.iksvc_left if limb == 'left' else self.iksvc_right
+
+        try :
+            ns = "ExternalTools/"+limb+"/PositionKinematicsNode/IKService"
+            rospy.wait_for_service(ns, 5.0)
+            resp = iksvc(ikreq)
+        except (rospy.ServiceException, rospy.ROSException), e:
+            rospy.logerr("Service call failed: %s" % (e,))
+            return []
+        if (resp.isValid[0]):
+            print("SUCCESS - Valid Joint Solution Found:")
+            limb_joints = dict(zip(resp.joints[0].name, resp.joints[0].position))
+            return limb_joints
+        else :
+            rospy.logerr("Invalid pose")
+            return []
 
 if __name__ == '__main__':
     try:
-        robot_interface()
+        RobotInterface()
     except rospy.ROSInterruptException:
         pass

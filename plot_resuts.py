@@ -2,7 +2,13 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import sys
-
+import os
+import glob
+# newest = max(glob.iglob('*.csv'), key=os.path.getctime)
+# print newest
+# files = filter(os.path.isfile, glob.glob('*.csv'))
+# files.sort(key=lambda x: os.path.getmtime(x))
+# print files[:3]
 for a_file in sys.argv[1:]:
     A = np.loadtxt(a_file)
     plt.plot(A[:,0],A[:,1],"r")

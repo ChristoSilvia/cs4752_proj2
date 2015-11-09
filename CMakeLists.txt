@@ -62,6 +62,7 @@ add_service_files(
   EndEffectorPosition.srv
   EndEffectorVelocity.srv
   SetParameters.srv
+  MoveRobot.srv
 )
 
 ## Generate actions in the 'action' folder
