@@ -129,30 +129,7 @@ def path_from(path, node) :
 
 	return return_path
 
-#attempts a path simplification by checking a straight line path between two random points, n times
-def simplify_path(path, n) :
-	
 
-	for i in xrange(0, n) :
-		p1 = random.randint(0,len(path)-1)
-		p2 = random.randint(0,len(path)-1)
-		while p1 == p2 and len(path) > 2:
-			p2 = random.uniform(0,len(path)-1)
-		if Line_Collision_Check(path[p1], path[p2]) :
-			#delete every segment before and after
-			first = p1
-			second = p2
-			if first > second :
-				first = p2
-				second = p1
-			new_path=[]
-			for f in xrange(0,first) :
-				new_path.append(path[f])
-			for s in xrange(second, len(path)) :
-				new_path.append(path[s])
-			path = new_path
-
-	return path
 
 def PointLerp(p1, p2, delta) :
 	dist = np.linalg.norm(p2 - p1)
@@ -178,7 +155,6 @@ class rrt() :
 		self.limb = 'left'
 		self.hand_pose = None
 
-		rospy.sleep(10)
 
 		#will endlessly take its current position and try to move to a random position
 		#while avoiding all obstacles
@@ -190,17 +166,33 @@ class rrt() :
 			qi = np.zeros(7)
 			for i in xrange(0,7) :
 				qi[i] = angle_dict['left_'+joints[i]]
+			while self.Check_Point(qi) : #true that there is an obstacle
+				print "QI is Not valid"
+				qi = np.zeros(7)
+				angle_dict = arm.joint_angles()
+				for i in xrange(0,7) :
+					qi[i] = angle_dict['left_'+joints[i]]
 			
 			loginfo("STARTING TO SAMPLE QF")
 			qf = sample_cspace()
-			while not self.Check_Point(qf) :
+			while self.Check_Point(qf) :
 				loginfo("INVALID QF TRYING NEW SAMPLE")
 				qf = sample_cspace()
 
 			path = self.RRT_Connect_Planner(qi, qf, 5000)
 			if path :
-				path = simplify_path(path, len(path)/2)
 				self.MoveAlongPath(path)
+				print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+				print qi
+				print '/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/'
+				print qf
+				print '--------**********************--------'
+				print path
+				path = self.simplify_path(path, len(path)/2)
+				print "--------------------------------------"
+				print path
+				print "------------------------------"
+				
 			else :
 				print "FAILED TO FIND PATH"
 
@@ -212,33 +204,71 @@ class rrt() :
 		for p in path :
 			this_p = {}
 			for i in xrange(0,7) :
-				this_p[joints[i]] = p[i]
+				this_p['left_'+joints[i]] = p[i]
 			arm.set_joint_positions(this_p)
+			not_there_yet = True
+			while not_there_yet :
+				print "waiting til next move"
+				rospy.sleep(.1)
+				new_p = arm.joint_angles()
+				tran_pos = np.zeros(7)
+				for xi in xrange(0,7) :
+					tran_pos[xi] = new_p['left_'+joints[xi]]
+				not_there_yet = scipy.spatial.distance.euclidean(p, tran_pos) > .001
+				print scipy.spatial.distance.euclidean(p, tran_pos)
 
 	def Check_Point(self, p) :
-		
+
 		try :
-			arm = String('left')
-			res = self.collision_checker(arm, list(p))
+			self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+			rospy.wait_for_service('/check_collision')
+			arm = String("left")
+			tep = list(p)
+			res = self.collision_checker(arm, tep)
 			return res.collision
 		except rospy.ServiceException, e:
 			loginfo("FAILED IN CHECK POINT")
 			print "Service call failed: %s"%e
-			return False
+			return True
 
 	def Check_Line(self, p1, p2) :
-		if not self.Check_Point(p2) :
-			return False
+		if self.Check_Point(p2) :
+			return True
 
 		p = p1
 		while not np.array_equal(p, p2) :
-			if not self.Check_Point(p) :
-				return False
+			if self.Check_Point(p) :
+				return True
 
 			#point lerp is less efficient than possible because i am finding the vector between them 
 			#during each call	
-			p = PointLerp(p, p2, .007) #roughly 6 degrees of rotation total
-		return True
+			p = PointLerp(p, p2, .07) #roughly 6 degrees of rotation total
+		return False
+
+	#attempts a path simplification by checking a straight line path between two random points, n times
+	def simplify_path(self, path, n) :
+		
+
+		for i in xrange(0, n) :
+			p1 = random.randint(0,len(path)-1)
+			p2 = random.randint(0,len(path)-1)
+			while p1 == p2 and len(path) > 2:
+				p2 = random.randint(0,len(path)-1)
+			if not self.Check_Line(path[p1], path[p2]) :
+				#delete every segment before and after
+				first = p1
+				second = p2
+				if first > second :
+					first = p2
+					second = p1
+				new_path=[]
+				for f in xrange(0,first) :
+					new_path.append(path[f])
+				for s in xrange(second, len(path)) :
+					new_path.append(path[s])
+				path = new_path
+
+		return path
 
 	#given an initial and final array of joints, it will find a path to there
 	#avoiding any singularities and obstacles
@@ -252,7 +282,7 @@ class rrt() :
 		path_b = []
 		path_b.append((None,qgoal))
 
-		delta = .003 #delta step to random point
+		delta = .2 #delta step to random point
 
 		for i in xrange(0,k) : #might change to while
 			#print "NEW ITERATION"
@@ -282,7 +312,7 @@ class rrt() :
 			#print qnew
 			#print "-----"
 			#do collision check between qnew and qnear
-			if self.Check_Line(qnear,qnew) :
+			if not self.Check_Line(qnear,qnew) :
 				
 				#valid so add to tree
 
@@ -298,7 +328,7 @@ class rrt() :
 					print "at %d Distance to Solution"%i
 					print end_distance
 					#check if qnear is close enough to opposite tree
-					if self.Check_Line(nearest_solution,qnew) :
+					if not self.Check_Line(nearest_solution,qnew) :
 						#the trees can reach each other to create the path
 						atohere = path_from(path_a, nearest_solution).reverse()
 						heretob = path_from(path_b, qnew)
@@ -315,7 +345,7 @@ class rrt() :
 					end_distance = scipy.spatial.distance.euclidean(qnew, nearest_solution)
 					print "Distance to Solution"
 					print end_distance
-					if self.Check_Line(nearest_solution,qnew) :
+					if not self.Check_Line(nearest_solution,qnew) :
 						atohere = path_from(path_a, qnew).reverse()
 						heretob = path_from(path_b,nearest_solution)
 						if atohere == [] or atohere == None:
