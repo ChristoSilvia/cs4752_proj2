@@ -35,6 +35,9 @@ class controller() :
         self.move_robot = rospy.ServiceProxy("/move_robot", MoveRobot)
         # loginfo("Initialized service proxy for /move_robot")
 
+        self.move_robot_plane_service = rospy.Service('/move_robot_plane', MoveRobot, self.handle_move_robot_plane)
+
+
         rospy.wait_for_service("/move_end_effector_trajectory")
         self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
         self.tool_trajectory = rospy.ServiceProxy("/move_tool_trajectory", JointAction)
@@ -181,16 +184,23 @@ class controller() :
         # print "base_dir: {0}".format(base_dir)
         return base_dir
 
-    # def PlaneToBaseOrientation(self, plane_x,plane_y,plane_z,plane_w):
-    #     self.transform_setup()
-    #     plane_orientation = quaternion_matrix([plane_x,plane_y,plane_z,plane_w])
+    def PlaneToBaseOrientation(self, plane_x,plane_y,plane_z,plane_w):
+        self.transform_setup()
+        plane_orientation = quaternion_matrix([plane_x,plane_y,plane_z,plane_w])
+        po = quaternion_matrix([plane_x,plane_y,plane_z,plane_w])
+        bo = np.dot(po, self.plane_rotation)
+        return quaternion_from_matrix(bo)
 
-    def plane_poseCb(self,plane_pose_msg):
-        pp = plane_pose_msg.position
+    def handle_move_robot_plane(self, req):
+        pp = req.pose.position
+        po = req.pose.orientation
         wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z)
+        wo = self.PlaneToBaseOrientation(po.x,po.y,po.z,po.w)
         base_pose = Pose()
         base_pose.position = Vector3(wp[0],wp[1],wp[2])
-        success = move_robot(MOVE_TO_POSE, "left", homepose)
+        base_pose.orientation = Quaternion(wo[0],wo[1],wo[2],wo[3])
+        success = move_robot(req.action, req.limb, base_pose)
+        return MoveRobotResponse(success)
 
     def plane_trajCb(self, plane_traj_msg):
         self.got_plane_traj = True
