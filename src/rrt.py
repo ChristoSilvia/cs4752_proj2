@@ -197,9 +197,12 @@ class rrt() :
 				loginfo("INVALID QF TRYING NEW SAMPLE")
 				qf = sample_cspace()
 
-			path = self.RRT_Connect_Planner(qi, qf, 10000000)
-			path = simplify_path(path, len(path)/2)
-			self.MoveAlongPath(path)
+			path = self.RRT_Connect_Planner(qi, qf, 5000)
+			if path :
+				path = simplify_path(path, len(path)/2)
+				self.MoveAlongPath(path)
+			else :
+				print "FAILED TO FIND PATH"
 
 		rospy.spin()
 
@@ -234,7 +237,7 @@ class rrt() :
 
 			#point lerp is less efficient than possible because i am finding the vector between them 
 			#during each call	
-			p = PointLerp(p, p2, .1) #roughly 6 degrees of rotation total
+			p = PointLerp(p, p2, .007) #roughly 6 degrees of rotation total
 		return True
 
 	#given an initial and final array of joints, it will find a path to there
@@ -249,7 +252,7 @@ class rrt() :
 		path_b = []
 		path_b.append((None,qgoal))
 
-		delta = .3 #delta step to random point
+		delta = .003 #delta step to random point
 
 		for i in xrange(0,k) : #might change to while
 			#print "NEW ITERATION"
