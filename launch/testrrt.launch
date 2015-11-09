@@ -1,5 +1,7 @@
 <launch>
-	<include file="$(find collision_checker)/launch/collision_server.launch"/>
+	<include file="$(find collision_checker)/launch/collision_server.launch">
+    <arg name="visualize" value="true"/>
+    </include>
 	<node name="rrt" pkg="cs4752_proj2" type="rrt.py" output="screen">
 	</node>
 
