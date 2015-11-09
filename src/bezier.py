@@ -14,7 +14,7 @@ curr_vel = [0.0,0.0,0.0]
 plane_traj_msg = Trajectory()
 time = 0
 meters_per_second = .03/1
-pts_per_meter = 1/.05
+pts_per_meter = 1/.01
 meters_per_unit = .1/66.6
 min_pts = 5
 time_between = .1
@@ -89,15 +89,21 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	seg_length = bezier_cubic_length(p0, p1, p2, p3)
 	num_points = int(seg_length*meters_per_unit*pts_per_meter)
 	if num_points < min_pts: num_points = min_pts
+	T_max = 1.0
 	t = sp.linspace(0,1,num_points)
+	Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
+	Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
 
 	#Use the Cubic Bezier formula
 
 	# add the position (Bx,By)
-	Bx, By, Bz = bezier_cubic(p0, p1, p2, p3, t)
+	Bx, By, Bz = bezier_cubic(p0, p1, p2, p3, Tau)
 
 	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy, Bdz = bezier_cubic_dt(p0, p1, p2, p3, t)
+	Bdx, Bdy, Bdz = bezier_cubic_dt(p0, p1, p2, p3, Tau)
+	Bdx *= Tauprime
+	Bdy *= Tauprime
+	Bdz *= Tauprime
 
 	dxi, dyi, dzi = bezier_cubic_dt(p0, p1, p2, p3, t0)
 	dxf, dyf, dzf = bezier_cubic_dt(p0, p1, p2, p3, t1)
@@ -105,7 +111,8 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	#Plot the Bezier curve
-	ax.plot(Bx, By, "k")
+	# ax.plot(Bx, By, "k")
+	
 
 	# Add to trajectory msg
 	P = np.array([Bx,By,Bz])
@@ -130,6 +137,10 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 		dt = bezier_cubic_length(p0, p1, p2, p3, ti=0.0, tf=curr_t)*seconds_per_unit
 		times.append(time + dt)
 
+	ax.plot(times, Bx, "r")
+	ax.plot(times, By, "g")
+	ax.plot(times, Bz, "b")
+
 	add_to_plane_traj_msg(P,V,times)
 	time += duration
 
@@ -145,22 +156,28 @@ def draw_quadratic_bezier(p0,p1,p3):
 	num_points = int(seg_length*meters_per_unit*pts_per_meter)
 	if num_points < min_pts: num_points = min_pts
 	t = sp.linspace(0,1,num_points)
+	T_max = 1.0
+	Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
+	Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
 	
 	#Use the Quadratic Bezier formula
 
 	# add the position (Bx,By)
-	Bx, By, Bz = bezier_quadratic(p0, p1, p3, t)
+	Bx, By, Bz = bezier_quadratic(p0, p1, p3, Tau)
 
 	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy, Bdz = bezier_quadratic_dt(p0, p1, p3, t)
+	Bdx, Bdy, Bdz = bezier_quadratic_dt(p0, p1, p3, Tau)
+	Bdx *= Tauprime
+	Bdy *= Tauprime
+	Bdz *= Tauprime
 
 	dxi, dyi, dzi = bezier_quadratic_dt(p0, p1, p3, t0)
 	dxf, dyf, dzf = bezier_quadratic_dt(p0, p1, p3, t1)
 
 	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
-	#Plot the Bezier curve
-	ax.plot(Bx, By, "k")
+	# Plot the Bezier curve
+	# ax.plot(Bx, By, "k")
 
 	# Add to trajectory msg
 	P = np.array([Bx,By,Bz])
@@ -185,6 +202,10 @@ def draw_quadratic_bezier(p0,p1,p3):
 	for curr_t in t:
 		times.append(time + bezier_quadratic_length(p0, p1, p3, ti=0.0, tf=curr_t)*seconds_per_unit)
 	
+	ax.plot(times, Bx, "r")
+	ax.plot(times, By, "g")
+	ax.plot(times, Bz, "b")
+	
 	add_to_plane_traj_msg(P,V,times)
 	time += duration
 
@@ -200,14 +221,20 @@ def draw_line(p0,p3,plot=True):
 	num_points = int(seg_length*meters_per_unit*pts_per_meter)
 	if num_points < min_pts: num_points = min_pts
 	t = sp.linspace(0,1,num_points)
+	T_max = 1.0
+	Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
+	Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
 
 	#Use the Linear  formula
 
 	# add the position (Bx,By)
-	Bx, By, Bz = linear(p0, p3, t)
+	Bx, By, Bz = linear(p0, p3, Tau)
 
 	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy, Bdz = linear_dt(p0, p3, t)
+	Bdx, Bdy, Bdz = linear_dt(p0, p3, Tau)
+	Bdx *= Tauprime
+	Bdy *= Tauprime
+	Bdz *= Tauprime
 
 	dxi, dyi, dzi = linear_dt(p0, p3, t0)
 	dxf, dyf, dzf = linear_dt(p0, p3, t1)
@@ -216,8 +243,8 @@ def draw_line(p0,p3,plot=True):
 	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	#Plot the Line
-	if plot:
-		ax.plot(Bx, By, "k")
+	# if plot:
+	# 	ax.plot(Bx, By, "k")
 
 	# Add to trajectory msg
 	P = np.array([Bx,By,Bz])
@@ -239,6 +266,12 @@ def draw_line(p0,p3,plot=True):
 		time -= time_between/2.0
 		t = np.insert(t,0,time)
 		time += time_between/2.0
+
+	if plot:
+		ax.plot(t, Bx, "r")
+		ax.plot(t, By, "g")
+		ax.plot(t, Bz, "b")
+	
 
 	add_to_plane_traj_msg(P,V,t)
 	time += duration
@@ -325,8 +358,8 @@ def pathCb(path):
 		send_plane_traj()
 
 	#Add those to the axes
-	ax.plot(p0[0],p0[1], "ob")
-	ax.plot(p3[0],p3[1], "or")
+	# ax.plot(p0[0],p0[1], "ob")
+	# ax.plot(p3[0],p3[1], "or")
 	curr_pos = p3
 	fig.canvas.draw()
 

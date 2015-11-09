@@ -2,6 +2,8 @@
 import rospy
 from std_msgs.msg import *
 from geometry_msgs.msg import *
+from cs4752_proj2.srv import *
+from cs4752_proj2.msg import *
 from baxter_core_msgs.msg import *
 from baxter_core_msgs.srv import *
 from baxter_interface import *
@@ -23,10 +25,14 @@ class PositionControl():
         self.gripper_left = Gripper('left')
         self.gripper_right = Gripper('right')
 
-        rospy.Subscriber("/robot/limb/left/endpoint_state", EndpointState, self.respondToEndpointLeft)
-        rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self.respondToEndpointRight)
+        self.left = Limb('left')
+        self.right = Limb('right')
+        self.limb.endpoint_pose()['position']
+        # rospy.Subscriber("/robot/limb/left/endpoint_state", EndpointState, self.respondToEndpointLeft)
+        # rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self.respondToEndpointRight)
         
         move_robot_service = rospy.Service('/move_robot', MoveRobot, self.handle_move_robot)
+        self.iksvc_right = rospy.ServiceProxy(ns, SolvePositionIK)
 
         try :
             rospy.loginfo("Initializing service proxy for /SolvePositionIK...")

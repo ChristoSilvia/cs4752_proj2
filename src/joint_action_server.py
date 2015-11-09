@@ -30,9 +30,9 @@ class JointActionServer():
         self.joint_names = self.limb.joint_names()
         
         # time discretization paramters
-        self.dt = 0.005
+        self.dt = 0.01
         self.deriv_step = 1e-5
-        self.secondary_objective = True 
+        self.secondary_objective = True
 
         # secondary objective parameters
         self.extra_motion_maximum = 0.05
@@ -44,6 +44,7 @@ class JointActionServer():
         self.kd = 0.0
 
         # Whiteboard PID parameters
+        self.on_whiteboard = False
         # normal direction
         self.surface_normal = np.array([0.0, 0.0, 1.0])
         # tangent
@@ -58,13 +59,10 @@ class JointActionServer():
         
         self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
         loginfo("Initialized /move_end_effector_trajectory")
-        self.move_tool_trajectory = rospy.Service('move_tool_trajectory', JointAction, self.move_tool_trajectory)
-        loginfo("Initialized /end_effector_position")
         self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
         loginfo("Initialized /end_effector_velocity")
-        self.tool_position_srv = rospy.Service('tool_position', EndEffectorPosition, self.get_tool_position_response)
-        loginfo("Initialized /tool_position")
         self.param_src = rospy.Service('set_parameters', SetParameters, self.parameter_response)
+        self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
         
         rospy.spin()
 
@@ -84,7 +82,7 @@ class JointActionServer():
         return JointActionResponse()
 
     def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
- 
+        
         xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
         yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
         zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
@@ -107,11 +105,23 @@ class JointActionServer():
         precomputed_velocities[1,:] = yinterpolator.derivative(T)
         precomputed_velocities[2,:] = zinterpolator.derivative(T)
 
-        errors = np.empty((3,n))
-        errors[:,0] = np.zeros(3)
+        actual_positions = np.empty((3,n))
+        actual_positions[:,0] = self.get_position()
 
-        vx_corrector, vy_corrector, vz_corrector = 0.0, 0.0, 0.0
-        last_vx_corrector, last_vy_corrector, last_vz_corrector = 0.0, 0.0, 0.0
+        corrector_velocities = np.empty((3,n))
+        corrector_velocities[:,0] = np.zeros(3)
+        
+        proportional_velocities = np.empty((3,n))
+        proportional_velocities[:,0] = np.zeros(3)
+
+        integral_velocities = np.empty((3,n))
+        integral_velocities[:,0] = np.zeros(3)
+
+        derivative_velocities = np.empty((3,n))
+        derivative_velocities[:,0] = np.zeros(3)
+
+        vx_proportional, vy_proportional, vz_proportional = 0.0, 0.0, 0.0
+        last_vx_proportional, last_vy_proportional, last_vz_proportional = 0.0, 0.0, 0.0
         vx_integral, vy_integral, vz_integral = 0.0, 0.0, 0.0
 
         for i in xrange(1,n):
@@ -123,25 +133,35 @@ class JointActionServer():
             time_interval = T[i] - T[i-1]           
  
             position = self.get_position()
-            vx_corrector = precomputed_positions[0,i] - position[0]
-            vy_corrector = precomputed_positions[1,i] - position[1]
-            vz_corrector = precomputed_positions[2,i] - position[2]
-            vx_integral += vx_corrector * time_interval
-            vy_integral += vy_corrector * time_interval
-            vz_integral += vz_corrector * time_interval
-            vx_derivative = (vx_corrector - last_vx_corrector)/time_interval
-            vy_derivative = (vy_corrector - last_vy_corrector)/time_interval
-            vz_derivative = (vz_corrector - last_vz_corrector)/time_interval
+            vx_proportional = precomputed_positions[0,i] - position[0]
+            vy_proportional = precomputed_positions[1,i] - position[1]
+            vz_proportional = precomputed_positions[2,i] - position[2]
+            proportional_velocities = self.kp * np.array([vx_proportional, vy_proportional, vz_proportional])
 
-            velocity_and_w[0] = precomputed_velocities[0,i] + self.kp * vx_corrector + self.ki * vx_integral - self.kd * vx_derivative
-            velocity_and_w[1] = precomputed_velocities[1,i] + self.kp * vy_corrector + self.ki * vy_integral - self.kd * vy_derivative
-            velocity_and_w[2] = precomputed_velocities[2,i] + self.kp * vz_corrector + self.ki * vz_integral - self.kd * vz_derivative
+            vx_integral += vx_proportional * time_interval
+            vy_integral += vy_proportional * time_interval
+            vz_integral += vz_proportional * time_interval
+            integral_velocities = self.ki * np.array([vx_integral, vy_integral, vz_integral])
 
-            last_vx_corrector = vx_corrector
-            last_vy_corrector = vy_corrector
-            last_vz_corrector = vz_corrector
+            vx_derivative = (vx_proportional - last_vx_proportional)/time_interval
+            vy_derivative = (vy_proportional - last_vy_proportional)/time_interval
+            vz_derivative = (vz_proportional - last_vz_proportional)/time_interval
+            derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
 
-            errors[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
+            vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative
+            vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative
+            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative
+            corrector_velocities[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
+           
+            velocity_and_w[0] = precomputed_velocities[0,i] + vx_corrector
+            velocity_and_w[1] = precomputed_velocities[1,i] + vy_corrector 
+            velocity_and_w[2] = precomputed_velocities[2,i] + vz_corrector
+
+            last_vx_proportional = vx_proportional
+            last_vy_proportional = vy_proportional
+            last_vz_proportional = vz_proportional
+
+            actual_positions[:,i] = position
  
             end_time = time_interval + t_start
             loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, time_interval))
@@ -151,11 +171,31 @@ class JointActionServer():
    
         self.limb.exit_control_mode()     
   
+        paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
         A = np.empty((n,4))
         A[:,0] = T
-        A[:,1:] = errors.T
-        paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/errors-{0}.csv".format(paramtext),A)
+        A[:,1:] = actual_positions.T
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/actual-positions-{0}.csv".format(paramtext),A)
+        B = np.empty((n,4))
+        B[:,0] = T
+        B[:,1:] = precomputed_positions.T
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/precomputed-positions-{0}.csv".format(paramtext),B)
+        C = np.empty((n,4))
+        C[:,0] = T
+        C[:,1:] = corrector_velocities.T
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),C)
+        D = np.empty((n,4))
+        D[:,0] = T
+        D[:,1:] = proportional_velocities.T
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),D)
+        E = np.empty((n,4))
+        E[:,0] = T
+        E[:,1:] = integral_velocities.T
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),E)
+        F = np.empty((n,4))
+        F[:,0] = T
+        F[:,1:] = derivative_velocities.T
+        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/tests/corrector-velocities-{0}.csv".format(paramtext),F)
         loginfo("saved errors")
 
     def get_manipulability(self):
@@ -199,9 +239,9 @@ class JointActionServer():
     #        loginfo("Jb: {0}".format(Jb))
     #        loginfo("Direction of Manipulatbility: {0}".format(direction_of_manipulability))
     #        loginfo("Joint Velocity Limit: {0}".format(0.1 + 5*mag_b_squared))
-            loginfo("b: {0}".format(b))
-            loginfo("Jb: {0}".format(Jb))
-            loginfo("dmu: {0}".format(direction_of_manipulability))
+    #        loginfo("b: {0}".format(b))
+    #        loginfo("Jb: {0}".format(Jb))
+    #        loginfo("dmu: {0}".format(direction_of_manipulability))
             return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , self.extra_motion_multiple*mag_b_squared + self.extra_motion_maximum)
 
     def make_joint_dict(self, joint_vector):
@@ -256,27 +296,27 @@ def null(a, rtol=1e-5):
 
 def maximize_cosine_constrained(a,b,c,n2):
     # same as maximize_cosine but the result should have norm no greater than n^2
-    loginfo(a)
+    # loginfo(a)
     # already normalized by the norm routine
     aa = 1.0
-    loginfo(np.dot(a,a))
-    loginfo(b)
+    #loginfo(np.dot(a,a))
+    #loginfo(b)
     ab = np.dot(a,b)
-    loginfo(ab)
+    #loginfo(ab)
     ac = np.dot(a,c)
     bc = np.dot(b,c)
     bb = np.dot(b,b)
-    loginfo("Computed Products")
+    #loginfo("Computed Products")
     ab_over_aa = ab/aa
     lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
     upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
     s = (bc*ab - bb*ac)/(ab*ac - aa*bc)
     is_maximum = 2*ab*ac*s*s + (ab*ab*ac + 3*aa*ac*bb)*s + (aa*bc + 2*ab*ac)*bb > 2*bc*aa*aa*s*s + bc*ab*ab
     if is_maximum:
-        loginfo("Maximum")
+        #loginfo("Maximum")
         return np.clip(s, lower_root, upper_root)
     else:
-        loginfo("Minimum")
+        #loginfo("Minimum")
         upper_vec = a * upper_root + b
         lower_vec = a * lower_root + b
         upper_cos = np.dot(upper_vec,c)/np.sqrt(np.dot(upper_vec,upper_vec)*np.dot(c,c))
