@@ -12,8 +12,6 @@ from copy import deepcopy
 import random
 from Tkinter import *
 
-meters_per_pixel = .0007
-
 def loginfo(message):
     rospy.loginfo("MouseDraw: {0}".format(message))
 
@@ -25,6 +23,11 @@ class MouseDraw() :
 		#rospy.wait_for_service("/move_end_effector_trajectory")
 		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
 		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
+		self.plane_pose_pub = rospy.Publisher('/plane_pose', Pose, queue_size=10)
+
+		rospy.wait_for_service("/move_robot")
+		self.move_robot = rospy.ServiceProxy("/move_robot", MoveRobot)
+		loginfo("Initialized service proxy for /move_robot")
 
 		#constants
 		self.limb = 'left'
@@ -60,8 +63,8 @@ class MouseDraw() :
 		self.canvas = Canvas(width=512, height=512, bg='white')
 		self.canvas.pack(expand=YES, fill=BOTH) 
 		self.canvas.bind("<1>", self.OnMouseDown)
-		self.canvas.bind("<Enter>", self.OnMouseScreenEnter)
-		self.canvas.bind("<Leave>", self.OnMouseScreenExit)
+		#self.canvas.bind("<Enter>", self.OnMouseScreenEnter)
+		#self.canvas.bind("<Leave>", self.OnMouseScreenExit)
 		self.canvas.bind("<B1-Motion>", self.MouseMotion)
 		self.root.bind_all('<4>', self.on_mousewheelDown,  add='+')
 		self.root.bind_all('<5>', self.on_mousewheelUp,  add='+')
@@ -81,7 +84,7 @@ class MouseDraw() :
 		traject.positions = self.positions
 		traject.velocities =  self.velocities
 
-		#print self.times
+		print 'sending trajectory'
 
 		self.plane_traj_pub.publish(traject)
 		
@@ -194,23 +197,21 @@ class MouseDraw() :
 		return False
 			
 
-	def OnMouseScreenEnter(self, event) :
-		print "Mouse in Screen"
-		
-	def OnMouseScreenExit(self, event) :
-		print "Mouse Left Screen"
-
 	def OnMouseDown(self, event) :
-		print "Click"
 		self.mouseX = event.x
 		self.mouseY = event.y
+		pose = Pose()
+		pose.position.x = self.mouseX*self.scale
+		pose.position.y = self.mouseY*self.scale
+		pose.position.z = self.zDist
+		self.plane_pose_pub(pose)
+		rospy.sleep(3)
 
 		self.resetTrajectoryData()
 
 
 
 	def on_mousewheelUp(self, event) :
-		print "MOUSE WHEEL UP"
 		self.zVel += self.ZDelta
 		print self.zVel
 		if self.zVel > 0 :
