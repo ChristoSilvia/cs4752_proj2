@@ -124,11 +124,11 @@ class MouseDraw() :
 		loginfo("Initialized MouseDraw Node")
 
 
-		#self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
+		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
 
 
-		#rospy.wait_for_service("/move_robot_plane")
-		#self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
+		rospy.wait_for_service("/move_robot_plane")
+		self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
 		
 		loginfo("Initialized service proxy for /move_robot")
 
