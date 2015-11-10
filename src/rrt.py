@@ -181,7 +181,7 @@ class rrt() :
 
 			path = self.RRT_Connect_Planner(qi, qf, 5000)
 			if path :
-				self.MoveAlongPath(path)
+				self.MoveAlongPathVelocity(path)
 				print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 				print qi
 				print '/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/'
@@ -198,6 +198,33 @@ class rrt() :
 
 		rospy.spin()
 
+	def MoveAlongPathVelocity(self, path) :
+		path_speed = .1
+		arm = Limb(self.limb)
+		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+		for goal in path :
+			
+			while True :
+
+				current_p_dict = arm.joint_angles()
+				current_p = np.zeros(7)
+				for i in xrange(0,7) :
+					current_p[i] = current_p_dict['left_'+joint[i]]
+				distance = scipy.spatial.distance.euclidean(goal, current_p)
+				if distance < .007 :
+					break
+
+				to_goal_vector = ((goal - current_p)/distance)*path_speed
+				velocity_dict = {}
+				for i in xrange(0,7) :
+					velocity_dict['left_'+joints[i]] = to_goal_vector[i]
+
+				arm.set_joint_velocities(velocity_dict)
+
+				rospy.sleep(.07)
+			
+				
+				
 	def MoveAlongPath(self, path) :
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
@@ -250,10 +277,12 @@ class rrt() :
 		
 
 		for i in xrange(0, n) :
-			p1 = random.randint(0,len(path)-1)
-			p2 = random.randint(0,len(path)-1)
-			while p1 == p2 and len(path) > 2:
-				p2 = random.randint(0,len(path)-1)
+			if len(path) < 4 :
+				return path
+			p1 = random.randint(1,len(path)-2)
+			p2 = random.randint(1,len(path)-2)
+			while p1 == p2
+				p2 = random.randint(1,len(path)-2)
 			if not self.Check_Line(path[p1], path[p2]) :
 				#delete every segment before and after
 				first = p1
@@ -262,7 +291,7 @@ class rrt() :
 					first = p2
 					second = p1
 				new_path=[]
-				for f in xrange(0,first) :
+				for f in xrange(0,first+1) :
 					new_path.append(path[f])
 				for s in xrange(second, len(path)) :
 					new_path.append(path[s])
