@@ -1,31 +1,53 @@
 import matplotlib.pyplot as plt
 from scipy import misc
-import atexit
+import numpy as np
+from scipy import ndimage
+import cv2
+from Tkinter import *
+import matplotlib.pyplot as plt
 
-def draw_image(image_name) :
+
+def rgb2gray(rgb):
+    return np.dot(rgb[...,:3], [0.33, 0.34, 0.33])
+
+def IterateImage(img) :
+	for r in xrange(0, img.shape[0]) :
+		for 
+
+def draw_image(image_name, detail) :
+
+	
+	from scipy import misc
+
+	image = misc.imread(image_name)
+	#image = rgb2gray(image)
+
+	
+	image = cv2.Canny(image,detail,detail)
+
+
+	
+	f = plt.figure()
+	ax = plt.imshow(image, cmap='Greys')
+	#http://matplotlib.org/examples/animation/dynamic_image.html
+	ani = animation.FuncAnimation(f, )
+	plt.show()
+	for r in xrange(0,image.shape[0]) :
+		for c in xrange(0,image.shape[1]) :
+			image[r,c] = 200
+			ax.set_data(image)
+			#show_obj.set_data(image)
+			if r == c :
+				print "ITERATING "
+			draw()
+			
+
+			#f.canvas.draw()
+	
 
 	
 
-	test_image = misc.imread(image_name, True)
-	
-	
-	edges = misc.imfilter(test_image, 'find_edges')
-
-
-
-	#plt.imshow(test_image)
-	#plt.show()
-	
-	plt.imshow(edges)
-	plt.show(edges)
-
-	#plt.close
-	print "done"
-
-@atexit.register
-def closer():
-	plt.close()
 
 if __name__ == '__main__':
-    draw_image('test_image.png')
+    draw_image('baxter.jpeg', 150)
 
