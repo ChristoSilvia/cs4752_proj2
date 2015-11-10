@@ -7,6 +7,7 @@ import pylab as plt
 from geometry_msgs.msg import *
 from cs4752_proj2.msg import *
 from cs4752_proj2.srv import *
+from config import *
 from copy import deepcopy
 
 curr_pos = [0.0,0.0,0.0]
@@ -284,27 +285,37 @@ def draw_line(p0,p3,plot=True):
 def move_pen(p0,p3):
 	global z_offset, curr_pos
 
-	z_offset_unit = z_offset/meters_per_unit
+	# z_offset_unit = z_offset/meters_per_unit
 	
-	p1 = deepcopy(p0)
-	p1[2] = z_offset_unit
-	p2 = deepcopy(p3)
-	p2[2] = z_offset_unit
+	# p1 = deepcopy(p0)
+	# p1[2] = z_offset_unit
+	# p2 = deepcopy(p3)
+	# p2[2] = z_offset_unit
 
-	p4 = deepcopy(p3)
-	p4[2] = -z_offset_unit/2.
+	# p4 = deepcopy(p3)
+	# p4[2] = -z_offset_unit/2.
 
-	draw_line(p0,p1,plot=False)
-	curr_pos = p1
-	draw_line(p1,p2,plot=False)
-	curr_pos = p2
-	draw_line(p2,p4,plot=False)
+	# draw_line(p0,p1,plot=False)
+	# curr_pos = p1
+	# draw_line(p1,p2,plot=False)
+	# curr_pos = p2
+	# draw_line(p2,p4,plot=False)
+
+	curr_pos = p3
+
+	global meters_per_unit, move_robot_plane
+	move_pen_pose = Pose()
+	move_pen_pose.orientation = Quaternion(0.0,0.0,0.0,1.0)
+	p3 = np.array(p3)
+	p3 *= meters_per_unit
+	move_pen_pose.position = Vector3(p3[0],p3[1],p3[2])
+	success = move_robot_plane(MOVE_TO_POS, "left", move_pen_pose)
 
 def pathCb(path):
 	global curr_pos, curr_vel, time, fig, ax, time_per_unit, meters_per_second, time_between
 
-	p0 = [0,0,0]
-	p3 = [0,0,0]
+	p0 = [0.0,0.0,0.0]
+	p3 = [0.0,0.0,0.0]
 
 	if (path.type == "R"):
 		# reset graph
@@ -345,10 +356,6 @@ def pathCb(path):
 		print "move pen to"
 		print p3
 		print "#####################################"
-
-		move_pen_pose = Pose()
-		move_pen_pose.orientation = Quaternion(0,0,0,1)
-		move_pen_pose.position = Vector3(path.x*meters_per_unit,path.x*meters_per_unit,
 
 		move_pen(p0,p3)
 
@@ -407,7 +414,7 @@ def add_to_plane_traj_msg(P,V,t):
 
 	for ti in t: plane_traj_msg.times.append(ti)
 	for i in range(0,r):
-		plane_traj_msg.positions.append( Vector3( P[i,0], P[i,1], P[i,2]-z_offset ) )
+		plane_traj_msg.positions.append( Vector3( P[i,0], P[i,1], P[i,2] ) )
 		plane_traj_msg.velocities.append( Vector3( V[i,0], V[i,1], V[i,2] ) )
 
 def send_plane_traj():

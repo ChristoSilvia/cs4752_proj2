@@ -95,6 +95,7 @@ class RobotInterface():
             new_pose.position = deepcopy(req.pose.position)
             # success = self.MoveToPose(req.limb, new_pose, "FAILED MoveToPose")
             success = self.MoveToPoseWithIntermediate(req.limb, new_pose)
+            rospy.loginfo("Moved to pos: %r" % success)
 
         else :
             print "invalid action"
@@ -107,23 +108,24 @@ class RobotInterface():
         new_pose.position = pose.position
         if inter1 :
             interpose1 = self.getOffsetPose(hand_pose, .05)
-            b1 = self.MoveToPose(limb, interpose1, "FAILED MoveToIntermediatePose")
+            b1 = self.MoveToPose(limb, interpose1, "MoveToIntermediatePose")
         if inter2 :
             interpose2 = self.getOffsetPose(new_pose, .05)
-            b2 = self.MoveToPose(limb, interpose2, "FAILED MoveToIntermediatePose")
+            b2 = self.MoveToPose(limb, interpose2, "MoveToIntermediatePose")
         if inter3 :
             interpose2 = self.getOffsetPose(new_pose, .01)
-            b3 = self.MoveToPose(limb, interpose2, "FAILED MoveToRightAbovePose")
-        self.MoveToPose(limb, new_pose, "FAILED MoveToPose")
+            b3 = self.MoveToPose(limb, interpose2, "MoveToRightAbovePose")
+        return self.MoveToPose(limb, new_pose, "MoveToPose")
 
-    def MoveToPose(self, limb, pose, err) :
+    def MoveToPose(self, limb, pose, name) :
         joint_solution = self.inverse_kinematics(limb, pose)
         if joint_solution != [] :
             self.moveArm(limb, joint_solution)
+            rospy.loginfo("SUCCEEDED: %s" % name)
             # rospy.sleep(MOVE_WAIT)
             return True
         else :
-            rospy.logerr(err)
+            rospy.logerr("FAILED %s" % name)
             return False
 
     def getOffsetPose(self, pose, offset) :

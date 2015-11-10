@@ -3,6 +3,7 @@ import rospy
 import numpy as np
 from scipy.spatial import KDTree
 from scipy.interpolate import PiecewisePolynomial
+from matplotlib import pyplot as plt
 from cs4752_proj2.msg import *
 from cs4752_proj2.srv import *
 from config import *
@@ -16,7 +17,8 @@ import tf2_ros
 from tf.transformations import *
 from copy import deepcopy
 
-zoffset = -.019
+zoffset = -.007
+# zoffset = 0
 
 def loginfo(logstring):
     rospy.loginfo("Controller: {0}".format(logstring))
@@ -45,7 +47,7 @@ class controller() :
 
         self.got_plane_traj = False
         self.calibrated_plane = False
-        self.calibrate_plane()
+        # self.calibrate_plane()
 
 
         rate = rospy.Rate(30)
@@ -205,12 +207,12 @@ class controller() :
         for i in range(0,len(plane_traj_msg.positions)):
             pp = plane_traj_msg.positions[i]
             wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z+zoffset)
-            P = np.append(P, [wp], axis=0)
+            P = np.append(P, [pp], axis=0)
             positions.append(Vector3(wp[0],wp[1],wp[2]))
 
             pv = plane_traj_msg.velocities[i]
             wv = self.PlaneToBaseDir(pv.x,pv.y,pv.z)
-            V = np.append(V, [wv], axis=0)
+            V = np.append(V, [pv], axis=0)
             velocities.append(Vector3(wv[0],wv[1],wv[2]))
 
         print "############### Recieved plane_traj_msg ##################"
@@ -229,7 +231,10 @@ class controller() :
         print V
         print "##########################################################"
 
-        self.joint_action_server(plane_traj_msg.times, positions, velocities) 
+        plt.plot(P[:,0],P[:,1])
+        plt.show()
+
+        # self.joint_action_server(plane_traj_msg.times, positions, velocities) 
 
 
 if __name__ == '__main__':

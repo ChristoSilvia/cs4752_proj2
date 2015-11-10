@@ -26,16 +26,13 @@ n = 3
 color = iter(['r','g','b'])
 # color=iter(cm.rainbow(np.linspace(0,1,n)))
 
-plots = []
 for a_file in filenames:
 	A = np.loadtxt(a_file)
 	c=next(color)
 	plot, = plt.plot(A[:,0],A[:,1],c=c, label=a_file)
-	plots.append(plot)
 	plt.plot(A[:,0],A[:,2],c=c)
 	plt.plot(A[:,0],A[:,3],c=c)
 plt.legend(loc='upper left')
-# plt.legend(handles=plots)
 plt.show()
 
 	
