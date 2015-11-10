@@ -15,6 +15,7 @@ from baxter_core_msgs.srv import *
 from baxter_interface import *
 from baxter_pykdl import baxter_kinematics
 from cs4752_proj2.srv import *
+from config import *
 from tf.transformations import *
 from copy import deepcopy
 from datetime import datetime
@@ -40,9 +41,9 @@ class JointActionServer():
         self.extra_motion_multiple = 2.0
         
         # free-movement PID parameters
-        self.kp = 0.01
-        self.ki = 0.01
-        self.kd = 0.0
+        self.kp = 1.5
+        self.ki = 0.72
+        self.kd = -0.0054
 
         # Whiteboard PID parameters
         self.on_whiteboard = False
@@ -58,12 +59,10 @@ class JointActionServer():
         self.kd_normal = 0.0
         
         
-        self.move_end_effector_trajectory = rospy.Service('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory)
-        loginfo("Initialized /move_end_effector_trajectory")
-        self.velocity_srv = rospy.Service('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response)
-        loginfo("Initialized /end_effector_velocity")
-        self.param_src = rospy.Service('set_parameters', SetParameters, self.parameter_response)
-        self.position_srv = rospy.Service('end_effector_position', EndEffectorPosition, self.get_position_response)
+        self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
+        self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
+        self.param_src = createService('set_parameters', SetParameters, self.parameter_response, limb_name)
+        self.position_srv = createService('end_effector_position', EndEffectorPosition, self.get_position_response, limb_name)
         
         rospy.spin()
 
@@ -183,23 +182,23 @@ class JointActionServer():
         B = np.empty((n,4))
         B[:,0] = T
         B[:,1:] = precomputed_positions.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
         C = np.empty((n,4))
         C[:,0] = T
         C[:,1:] = corrector_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),C)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),C)
         D = np.empty((n,4))
         D[:,0] = T
         D[:,1:] = proportional_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),D)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),D)
         E = np.empty((n,4))
         E[:,0] = T
         E[:,1:] = integral_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}vcorrector-velocities-{0}.csv".format(paramtext,date,folder),E)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}vcorrector-velocities-{0}.csv".format(paramtext,date,folder),E)
         F = np.empty((n,4))
         F[:,0] = T
         F[:,1:] = derivative_velocities.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),F)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),F)
         loginfo("saved errors")
 
     def get_manipulability(self):

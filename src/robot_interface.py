@@ -30,7 +30,7 @@ class RobotInterface():
         rospy.Subscriber("/robot/limb/left/endpoint_state", EndpointState, self.respondToEndpointLeft)
         rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self.respondToEndpointRight)
         
-        move_robot_service = rospy.Service('/move_robot', MoveRobot, self.handle_move_robot)
+        move_robot_service = createService('move_robot', MoveRobot, self.handle_move_robot, "")
 
         try :
             rospy.loginfo("Initializing service proxy for /SolvePositionIK...")

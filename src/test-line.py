@@ -31,25 +31,15 @@ def test():
     loginfo("Initialized node Controller")
 
     global move_robot
-    rospy.wait_for_service("/move_robot")
-    move_robot = rospy.ServiceProxy("/move_robot", MoveRobot)
-    loginfo("Initialized service proxy for /move_robot")
-
-    rospy.wait_for_service("/move_end_effector_trajectory")
-    joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-    
-    rospy.wait_for_service("/end_effector_position")
-    position_server = rospy.ServiceProxy("/end_effector_position", EndEffectorPosition)
-    loginfo("Initialized position server proxy")
-
-    rospy.wait_for_service("/set_parameters")
-    parameter_server = rospy.ServiceProxy("/set_parameters", SetParameters)
-    loginfo("Initialized parameter server")
+    move_robot = createServiceProxy("move_robot",MoveRobot,"")
+    joint_action_server = createServiceProxy("move_end_effector_trajectory",JointAction,limb)
+    position_server = createServiceProxy("end_effector_position",EndEffectorPosition,limb)
+    parameter_server = createServiceProxy("set_parameters",SetParameters,limb)
 
     def evaluate_parameters(params):
         loginfo(params)
         L = 0.3
-        T_max = 4.0
+        T_max = 6.0
         v = L/T_max
         parameter_server(params[0],params[1],params[2],params[3],params[4])
  
@@ -60,12 +50,18 @@ def test():
 
     T_eq = 0.9
     K_eq = 6.0
+
     #K_p = 0.6 * K_eq
     #K_i = 2.0 * K_eq / T_eq
     #K_d = 0.125 * K_eq * T_eq
+
     K_p = 1.5
     K_i = 0.72
     K_d = -0.0054
+
+    # K_p = 10.0
+    # K_i = 0.0
+    # K_d = 0.0
 
     guess_params = np.array([K_p, K_i, K_d, 0.05, 1.5])
     evaluate_parameters(guess_params)
@@ -77,7 +73,7 @@ def test():
 def HomePose() :
     rospy.loginfo("Going to Home Pose")
     homepose = Pose()
-    homepose.position = Point(0.572578886689,0.081184911298,0.146191403844)
+    homepose.position = Point(0.572578886689,0.081184911298,0.036191403844)
     homepose.orientation = Quaternion(0.140770659119,0.989645234506,0.0116543447684,0.0254972076605)
     # success = MoveToPose(homepose, False, False, False)
     global move_robot

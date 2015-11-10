@@ -5,6 +5,7 @@ from scipy.spatial import KDTree
 from scipy.interpolate import PiecewisePolynomial
 from cs4752_proj2.msg import *
 from cs4752_proj2.srv import *
+from config import *
 from geometry_msgs.msg import *
 from visualization_msgs.msg import Marker, MarkerArray
 import baxter_interface
@@ -24,30 +25,19 @@ class controller() :
         loginfo("Initialized node Controller")
 
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
-        rospy.Subscriber("/plane_pose", Pose, self.plane_poseCb, queue_size=20)
+        # rospy.Subscriber("/plane_pose", Pose, self.plane_poseCb, queue_size=20)
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
-        self.left = baxter_interface.Limb('left')
-        self.left_kin = baxter_kinematics('left')
+        self.move_robot = createServiceProxy("move_robot", MoveRobot, "")
 
-        rospy.wait_for_service("/move_robot")
-        self.move_robot = rospy.ServiceProxy("/move_robot", MoveRobot)
-        # loginfo("Initialized service proxy for /move_robot")
-
-        self.move_robot_plane_service = rospy.Service('/move_robot_plane', MoveRobot, self.handle_move_robot_plane)
+        self.move_robot_plane_service = createService('move_robot_plane', MoveRobot, self.handle_move_robot_plane, "")
 
 
-        rospy.wait_for_service("/move_end_effector_trajectory")
-        self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-        self.tool_trajectory = rospy.ServiceProxy("/move_tool_trajectory", JointAction)
-        loginfo("Initialized Joint Action Server Proxy")
-        rospy.wait_for_service("/end_effector_position")
-        self.position_server = rospy.ServiceProxy("/end_effector_position", EndEffectorPosition)
-        loginfo("Initialized position server proxy")
-        rospy.wait_for_service("/tool_position")
-        self.tool_position_server = rospy.ServiceProxy("/tool_position", EndEffectorPosition)
-        loginfo("Initialized tool_position server proxy")
+        self.joint_action_server = createServiceProxy("move_end_effector_trajectory", JointAction, "left")
+        self.tool_trajectory = createServiceProxy("move_tool_trajectory", JointAction, "left")
+        self.position_server = createServiceProxy("end_effector_position", EndEffectorPosition, "left")
+        self.tool_position_server = createServiceProxy("tool_position", EndEffectorPosition, "left")
 
         self.tf_br = tf2_ros.TransformBroadcaster()
 
