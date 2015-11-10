@@ -93,26 +93,28 @@ class RobotInterface():
             hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
             new_pose = deepcopy(hand_pose)
             new_pose.position = deepcopy(req.pose.position)
-            success = self.MoveToPose(req.limb, new_pose, "FAILED MoveToPose")
+            # success = self.MoveToPose(req.limb, new_pose, "FAILED MoveToPose")
+            success = self.MoveToPoseWithIntermediate(req.limb, new_pose)
 
         else :
             print "invalid action"
 
         return MoveRobotResponse(success)
 
-    def MoveToPoseWithIntermediate(self, limb, pose, inter1=False, inter2=False, inter3=False) :
+    def MoveToPoseWithIntermediate(self, limb, pose, inter1=True, inter2=True, inter3=False) :
         hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
+        new_pose = deepcopy(hand_pose)
+        new_pose.position = pose.position
         if inter1 :
             interpose1 = self.getOffsetPose(hand_pose, .05)
             b1 = self.MoveToPose(limb, interpose1, "FAILED MoveToIntermediatePose")
         if inter2 :
-            interpose2 = self.getOffsetPose(pose, .05)
+            interpose2 = self.getOffsetPose(new_pose, .05)
             b2 = self.MoveToPose(limb, interpose2, "FAILED MoveToIntermediatePose")
         if inter3 :
-            interpose2 = self.getOffsetPose(pose, .01)
+            interpose2 = self.getOffsetPose(new_pose, .01)
             b3 = self.MoveToPose(limb, interpose2, "FAILED MoveToRightAbovePose")
-
-        self.MoveToPose(limb, pose, "FAILED MoveToPose")
+        self.MoveToPose(limb, new_pose, "FAILED MoveToPose")
 
     def MoveToPose(self, limb, pose, err) :
         joint_solution = self.inverse_kinematics(limb, pose)

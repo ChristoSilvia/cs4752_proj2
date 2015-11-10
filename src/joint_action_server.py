@@ -32,18 +32,23 @@ class JointActionServer():
         self.joint_names = self.limb.joint_names()
         
         # time discretization paramters
-        self.dt = 0.01
+        # self.dt = 0.01
         self.deriv_step = 1e-5
-        self.secondary_objective = True
+        self.secondary_objective = False
 
         # secondary objective parameters
         self.extra_motion_maximum = 0.05
         self.extra_motion_multiple = 2.0
         
         # free-movement PID parameters
-        self.kp = 1.5
-        self.ki = 0.72
-        self.kd = -0.0054
+        # self.kp = 1.5
+        # self.ki = 0.72
+        # self.kd = -0.0054
+
+        self.kp = 0.01
+        self.ki = 0.01
+        self.kd = 0.0
+        self.dt = 0.012
 
         # Whiteboard PID parameters
         self.on_whiteboard = False

@@ -19,7 +19,7 @@ meters_per_unit = .1/66.6
 min_pts = 5
 time_between = .1
 scale = 1
-z_offset = .020
+z_offset = .015
 
 def loginfo(logstring):
 	rospy.loginfo("Bezier: {0}".format(logstring))
@@ -91,8 +91,10 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	if num_points < min_pts: num_points = min_pts
 	T_max = 1.0
 	t = sp.linspace(0,1,num_points)
-	Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
-	Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
+	# Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
+	# Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
+	Tau = t
+	Tauprime = 1
 
 	#Use the Cubic Bezier formula
 
@@ -111,7 +113,7 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	#Plot the Bezier curve
-	# ax.plot(Bx, By, "k")
+	ax.plot(Bx, By, "k")
 	
 
 	# Add to trajectory msg
@@ -137,9 +139,9 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 		dt = bezier_cubic_length(p0, p1, p2, p3, ti=0.0, tf=curr_t)*seconds_per_unit
 		times.append(time + dt)
 
-	ax.plot(times, Bx, "r")
-	ax.plot(times, By, "g")
-	ax.plot(times, Bz, "b")
+	# ax.plot(times, Bx, "r")
+	# ax.plot(times, By, "g")
+	# ax.plot(times, Bz, "b")
 
 	add_to_plane_traj_msg(P,V,times)
 	time += duration
@@ -157,9 +159,11 @@ def draw_quadratic_bezier(p0,p1,p3):
 	if num_points < min_pts: num_points = min_pts
 	t = sp.linspace(0,1,num_points)
 	T_max = 1.0
-	Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
-	Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
-	
+	# Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
+	# Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
+	Tau = t
+	Tauprime = 1
+
 	#Use the Quadratic Bezier formula
 
 	# add the position (Bx,By)
@@ -177,7 +181,7 @@ def draw_quadratic_bezier(p0,p1,p3):
 	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
 	# Plot the Bezier curve
-	# ax.plot(Bx, By, "k")
+	ax.plot(Bx, By, "k")
 
 	# Add to trajectory msg
 	P = np.array([Bx,By,Bz])
@@ -202,9 +206,9 @@ def draw_quadratic_bezier(p0,p1,p3):
 	for curr_t in t:
 		times.append(time + bezier_quadratic_length(p0, p1, p3, ti=0.0, tf=curr_t)*seconds_per_unit)
 	
-	ax.plot(times, Bx, "r")
-	ax.plot(times, By, "g")
-	ax.plot(times, Bz, "b")
+	# ax.plot(times, Bx, "r")
+	# ax.plot(times, By, "g")
+	# ax.plot(times, Bz, "b")
 	
 	add_to_plane_traj_msg(P,V,times)
 	time += duration
@@ -222,9 +226,10 @@ def draw_line(p0,p3,plot=True):
 	if num_points < min_pts: num_points = min_pts
 	t = sp.linspace(0,1,num_points)
 	T_max = 1.0
-	Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
-	Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
-
+	# Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
+	# Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
+	Tau = t
+	Tauprime = 1
 	#Use the Linear  formula
 
 	# add the position (Bx,By)
@@ -242,9 +247,9 @@ def draw_line(p0,p3,plot=True):
 	# check for continuity
 	continuous = is_continuous(p0, [dxi[0], dyi[0], dzi[0]], [dxf[0], dyf[0], dzf[0]])
 
-	#Plot the Line
-	# if plot:
-	# 	ax.plot(Bx, By, "k")
+	# Plot the Line
+	if plot:
+		ax.plot(Bx, By, "k")
 
 	# Add to trajectory msg
 	P = np.array([Bx,By,Bz])
@@ -267,10 +272,10 @@ def draw_line(p0,p3,plot=True):
 		t = np.insert(t,0,time)
 		time += time_between/2.0
 
-	if plot:
-		ax.plot(t, Bx, "r")
-		ax.plot(t, By, "g")
-		ax.plot(t, Bz, "b")
+	# if plot:
+	# 	ax.plot(t, Bx, "r")
+	# 	ax.plot(t, By, "g")
+	# 	ax.plot(t, Bz, "b")
 	
 
 	add_to_plane_traj_msg(P,V,t)
@@ -340,6 +345,10 @@ def pathCb(path):
 		print "move pen to"
 		print p3
 		print "#####################################"
+
+		move_pen_pose = Pose()
+		move_pen_pose.orientation = Quaternion(0,0,0,1)
+		move_pen_pose.position = Vector3(path.x*meters_per_unit,path.x*meters_per_unit,
 
 		move_pen(p0,p3)
 
@@ -423,7 +432,7 @@ def bezier():
 	rospy.init_node("bezier")
 	loginfo("Initialized node Bezier")
 
-	global fig, ax, plane_traj_pub
+	global fig, ax, plane_traj_pub, move_robot_plane
 	
 	#Generate the figure
 	fig = plt.figure()
@@ -432,6 +441,7 @@ def bezier():
 
 	rospy.Subscriber("/cmd_path", Path, pathCb, queue_size=10000)	
 	plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
+	move_robot_plane = createServiceProxy("move_robot_plane", MoveRobot, "")
 
 	plt.show()
 	# rospy.spin()

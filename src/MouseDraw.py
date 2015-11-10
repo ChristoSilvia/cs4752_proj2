@@ -5,7 +5,7 @@ from cs4752_proj2.srv import *
 from config import *
 
 from std_msgs.msg import String
-from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import *
 from cs4752_proj2.msg import Trajectory
 
 
@@ -203,15 +203,12 @@ class MouseDraw() :
 		self.mouseX = event.x
 		self.mouseY = event.y
 
-		mr = MoveRobot()
-		mr.action = MOVE_TO_POS
-		mr.limb = String('left')
-		mr.pose = Pose()
-		mr.pose.position = Position()
-		mr.pose.position.x = self.mouseX*self.scale
-		mr.pose.position.y = self.mouseY*self.scale
-		mr.pose.position.z = self.zDist
-		self.move_robot_plane(mr)
+		newpose = Pose()
+		newpose.position.x = self.mouseX*self.scale
+		newpose.position.y = self.mouseY*self.scale
+		newpose.position.z = self.zDist
+		newpose.orientation = Quaternion(0,0,0,1)
+		success = self.move_robot_plane(MOVE_TO_POS, "left", newpose)
 
 
 		self.resetTrajectoryData()

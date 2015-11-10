@@ -16,6 +16,8 @@ import tf2_ros
 from tf.transformations import *
 from copy import deepcopy
 
+zoffset = -.019
+
 def loginfo(logstring):
     rospy.loginfo("Controller: {0}".format(logstring))
 
@@ -35,15 +37,15 @@ class controller() :
 
 
         self.joint_action_server = createServiceProxy("move_end_effector_trajectory", JointAction, "left")
-        self.tool_trajectory = createServiceProxy("move_tool_trajectory", JointAction, "left")
         self.position_server = createServiceProxy("end_effector_position", EndEffectorPosition, "left")
-        self.tool_position_server = createServiceProxy("tool_position", EndEffectorPosition, "left")
+        # self.tool_trajectory = createServiceProxy("move_tool_trajectory", JointAction, "left")
+        # self.tool_position_server = createServiceProxy("tool_position", EndEffectorPosition, "left")
 
         self.tf_br = tf2_ros.TransformBroadcaster()
 
         self.got_plane_traj = False
         self.calibrated_plane = False
-        # self.calibrate_plane()
+        self.calibrate_plane()
 
 
         rate = rospy.Rate(30)
@@ -184,12 +186,12 @@ class controller() :
     def handle_move_robot_plane(self, req):
         pp = req.pose.position
         po = req.pose.orientation
-        wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z)
+        wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z+zoffset/2)
         wo = self.PlaneToBaseOrientation(po.x,po.y,po.z,po.w)
         base_pose = Pose()
         base_pose.position = Vector3(wp[0],wp[1],wp[2])
         base_pose.orientation = Quaternion(wo[0],wo[1],wo[2],wo[3])
-        success = move_robot(req.action, req.limb, base_pose)
+        success = self.move_robot(req.action, req.limb, base_pose)
         return MoveRobotResponse(success)
 
     def plane_trajCb(self, plane_traj_msg):
@@ -202,7 +204,7 @@ class controller() :
         velocities = []
         for i in range(0,len(plane_traj_msg.positions)):
             pp = plane_traj_msg.positions[i]
-            wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z)
+            wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z+zoffset)
             P = np.append(P, [wp], axis=0)
             positions.append(Vector3(wp[0],wp[1],wp[2]))
 
