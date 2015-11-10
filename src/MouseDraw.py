@@ -3,6 +3,7 @@ import numpy as np
 import rospy
 from cs4752_proj2.srv import *
 from config import *
+from tkFileDialog import askopenfilename
 
 from std_msgs.msg import String
 from geometry_msgs.msg import *
@@ -126,6 +127,7 @@ class MouseDraw() :
 
 		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
 
+		#rospy.wait_for_service('/')
 
 		rospy.wait_for_service("/move_robot_plane")
 		self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
@@ -171,7 +173,9 @@ class MouseDraw() :
 		self.root.bind_all('<5>', self.on_mousewheelUp,  add='+')
 		self.canvas.bind('c', self.Clear)
 
-		image_path = draw_image('car.jpg', 150, self.canvas)
+
+		filename = askopenfilename() 
+		image_path = draw_image(filename, 150, self.canvas)
 		print len(image_path)
 		self.sendImagePath(image_path)
 
@@ -343,6 +347,7 @@ class MouseDraw() :
 	
 	def MoveToScreenPosition(self,x,y,z) :
 		newpose = Pose()
+		newpose.position = Vector3()
 		newpose.position.x = x *self.scale
 		newpose.position.y = y *self.scale
 		newpose.position.z = z

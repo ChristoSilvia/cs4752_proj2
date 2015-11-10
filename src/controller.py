@@ -32,7 +32,7 @@ class controller() :
         # rospy.Subscriber("/plane_pose", Pose, self.plane_poseCb, queue_size=20)
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
-
+        rospy.wait_for_service("/move_robot") #ADDED THIS HERE
         self.move_robot = createServiceProxy("move_robot", MoveRobot, "")
 
         self.move_robot_plane_service = createService('move_robot_plane', MoveRobot, self.handle_move_robot_plane, "")
