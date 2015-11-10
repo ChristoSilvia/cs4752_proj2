@@ -9,25 +9,126 @@ from geometry_msgs.msg import *
 from cs4752_proj2.msg import Trajectory
 
 
+import matplotlib.pyplot as plt
+from scipy import misc
+import cv2
+from Tkinter import *
 from copy import deepcopy
 import random
-from Tkinter import *
 
 def loginfo(message):
     rospy.loginfo("MouseDraw: {0}".format(message))
+
+def DirToSlope(dir) :
+		if dir == 0 :
+			return (1,0)
+		elif dir == 1 :
+			return (1,1)
+		elif dir == 2 :
+			return (0,1)
+		elif dir == 3 :
+			return (-1,1)
+		elif dir == 4 :
+			return (-1,0)
+		elif dir == 5 :
+			return (-1,-1)
+		elif dir == 6 :
+			return (0,-1)
+		else :
+			return (1,-1)
+
+def isInBounds(img,r,c) :
+	return r >= 0 and c >= 0 and img.shape[0] > r and img.shape[1] > c
+
+def CheckOffset(img, r, c) :
+	if isInBounds(img,r,c) :
+		return img[r,c]
+	return 0
+
+def DeletePerps(img, r, c, dire, stride) :
+	upper = (dire + 2)%8
+	(ur, uc) = DirToSlope(upper)
+	lower = ((dire - 2)+8)%8
+	(lr,lc) = DirToSlope(lower)
+	for i in xrange(0,stride) :
+		if isInBounds(img, r+ur*i,c+uc*i) :
+			img[r+ur*i,c+uc*i] = 0
+		if isInBounds(img, r+lr*i,c+lc*i) :
+			img[r+lr*i,c+lc*i] = 0
+	return img
+
+#returns the straightest path available by a greedy approach
+#subtracts the pixels taken in the path from the image
+def FindPathFrom(img, r, c, canvas) :
+	path = []
+	path.append((r,c))
+	img[r,c] = 0
+	direction = 0
+	PathFound = True
+	while (PathFound) :
+		difference = 0
+		PathFound = False
+		while difference < 5 :
+			upper = (direction + difference)%8
+			lower = ((direction - difference)+8)%8
+			if upper != lower :
+				(lr, lc) = DirToSlope(lower)
+				if CheckOffset(img, r+lr, c+lc) :
+					r += lr
+					c += lc
+					path.append((r,c))
+					img[r,c] = 0
+					direction = lower
+					PathFound = True
+					canvas.create_rectangle(r+2, c+2, r, c, outline="#fb0", fill="#fb0")
+					img = DeletePerps(img, r,c,direction,2)
+					break
+
+			(ur, uc) = DirToSlope(upper)
+			if CheckOffset(img, r+ur, c+uc) :
+				r += ur
+				c += uc
+				img[r,c] = 0
+				path.append((r,c))
+				direction = upper
+				PathFound = True
+				canvas.create_rectangle(r+2, c+2, r, c, outline="#fb0", fill="#fb0")
+				img = DeletePerps(img, r,c,direction,2)
+				break
+
+			difference = difference + 1
+	if len(path) > 5 :
+		return img, path
+	return img, []
+
+def IterateImage(img, canvas) :
+	paths = []
+	for r in xrange(0, img.shape[0]) :
+		for c in xrange(0, img.shape[1]) :
+			if img[r,c] > 0 :
+				img, path = FindPathFrom(img, r, c, canvas)
+				if path :
+					paths.append(path)
+	return paths
+
+def draw_image(image_name, detail, canvas) :
+	image = misc.imread(image_name)
+	image = cv2.Canny(image,detail,detail)	
+	paths = IterateImage(image, canvas)
+	print paths
+	return paths
 
 class MouseDraw() :
 	def __init__(self) :
 		rospy.init_node('MouseDraw')
 		loginfo("Initialized MouseDraw Node")
 
-		#rospy.wait_for_service("/move_end_effector_trajectory")
-		#self.joint_action_server = rospy.ServiceProxy("/move_end_effector_trajectory", JointAction)
-		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
+
+		#self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
 
 
-		rospy.wait_for_service("/move_robot_plane")
-		self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
+		#rospy.wait_for_service("/move_robot_plane")
+		#self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
 		
 		loginfo("Initialized service proxy for /move_robot")
 
@@ -57,8 +158,6 @@ class MouseDraw() :
 
 		self.lastTrajectoryUpdate = 0
 		
-		
-		
 
 
 		self.root = Tk()
@@ -71,6 +170,11 @@ class MouseDraw() :
 		self.root.bind_all('<4>', self.on_mousewheelDown,  add='+')
 		self.root.bind_all('<5>', self.on_mousewheelUp,  add='+')
 		self.canvas.bind('c', self.Clear)
+
+		image_path = draw_image('car.jpg', 150, self.canvas)
+		print len(image_path)
+		self.sendImagePath(image_path)
+
 		print "drawing on canvas"
 		
 		self.root.mainloop()
@@ -78,6 +182,45 @@ class MouseDraw() :
 	def Clear(self, event) :
 		print "Deleting Canvas"
 		self.canvas.get_tk_widget().delete("all")
+
+	def sendImagePath(self, paths) :
+		oldpos = Vector3(0,0,0)
+		for path in paths :
+			loginfo("Starting New Line")
+			(x,y) =path[0]
+			self.MoveToScreenPosition(x,y,self.zDist)
+
+
+			traject = Trajectory()
+			traject.reference_frame = self.limb
+			traject.times =[]
+			traject.positions = []
+			traject.velocities = []
+			i = 0
+			sumtime = 0
+			for pixels in path :
+				if i % 5 == 0 :
+					new_p = Vector3(pixels[0] *self.scale, pixels[1] *self.scale, self.zDist)
+					new_v = Vector3(0,0,0)
+					new_t = 0
+					if i != 0 :
+						dx = new_p.x - oldpos.x
+						dy = new_p.y - oldpos.y
+						dz = new_p.z - oldpos.z
+						dist = (dx**2+dy**2+dz**2)**5
+						new_v = Vector3((dx)/dist*self.speed, (dy)/dist*self.speed, dz/dist*self.speed)
+						new_t = dist/self.speed
+					sumtime += new_t
+					traject.positions.append(new_p)
+					traject.velocities.append(new_v)
+					traject.times.append(new_t)
+					oldpos = new_p
+				i += 1
+
+			self.plane_traj_pub.publish(traject)
+			rospy.sleep(sumtime)
+
+
 
 	def sendLiveFeed(self) :
 		traject = Trajectory()
@@ -197,18 +340,21 @@ class MouseDraw() :
 			return True 
 
 		return False
-			
+	
+	def MoveToScreenPosition(self,x,y,z) :
+		newpose = Pose()
+		newpose.position.x = x *self.scale
+		newpose.position.y = y *self.scale
+		newpose.position.z = z
+		newpose.orientation = Quaternion(0,0,0,1)
+		success = self.move_robot_plane(MOVE_TO_POS, "left", newpose)
+		return success
 
 	def OnMouseDown(self, event) :
 		self.mouseX = event.x
 		self.mouseY = event.y
 
-		newpose = Pose()
-		newpose.position.x = self.mouseX*self.scale
-		newpose.position.y = self.mouseY*self.scale
-		newpose.position.z = self.zDist
-		newpose.orientation = Quaternion(0,0,0,1)
-		success = self.move_robot_plane(MOVE_TO_POS, "left", newpose)
+		self.MoveToScreenPosition(self.mouseX, self.mouseY, self.zDist)
 
 
 		self.resetTrajectoryData()
@@ -245,6 +391,10 @@ class MouseDraw() :
 
 	def quit(self) :
 		self.root.quit()
+
+	
+		
+
 
 
 
