@@ -211,9 +211,9 @@ class rrt() :
 	
 
 	def MoveAlongPathVelocity2(self, path) :
-		joint_velocity = .2
-		min_distance = .10
-		kp = 0.0
+		joint_velocity = .4
+		min_distance = .30
+		kp = 3.0
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
@@ -229,23 +229,33 @@ class rrt() :
 			while True :
 				newTime = time.time()
 				deltaTime = newTime - start_time
-				ideal_pos = start_vec*deltaTime + start_p
+				ideal_pos = start_vec*deltaTime*joint_velocity*.5 + start_p
 				current_p_dict = arm.joint_angles()
 				current_p = np.zeros(7)
 				for i in xrange(0,7) :
 					current_p[i] = current_p_dict['left_'+joints[i]]
 				distance = scipy.spatial.distance.euclidean(goal, current_p)
 				current_to_ideal = ideal_pos - current_p
-				# current_to_ideal *= -1
-				correction_dire = current_to_ideal/np.linalg.norm(current_to_ideal)
+
+				correction_dire = current_to_ideal
+				if np.linalg.norm(current_to_ideal) != 0:
+					correction_dire = current_to_ideal/np.linalg.norm(current_to_ideal)
 				to_goal_vector =  correction_dire*kp + start_vec # vector .5
-				to_goal_norm = (to_goal_vector/np.linalg.norm(to_goal_vector)) * joint_velocity
+				
+				to_goal_norm = to_goal_vector
+				if np.linalg.norm(to_goal_vector) != 0:
+					to_goal_norm = (to_goal_vector/np.linalg.norm(to_goal_vector)) * joint_velocity
+			
 				print 'distance to next pose :'
 				print distance
 				print 'error : %f' % np.linalg.norm(current_to_ideal)
 				print current_to_ideal
 				print 'Moving toward :'
 				print to_goal_norm
+				print 'ideal_pos'
+				print ideal_pos
+				print 'current_p'
+				print current_p
 				
 				if distance < min_distance :
 					to_goal_norm = np.zeros(7)
@@ -257,7 +267,7 @@ class rrt() :
 
 				arm.set_joint_velocities(velocity_dict)
 
-				rospy.sleep(.05)
+				rospy.sleep(.050)
 				if distance < min_distance :
 					break
 
