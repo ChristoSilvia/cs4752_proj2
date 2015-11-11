@@ -272,7 +272,7 @@ class rrt() :
 			print '--------**********************--------'
 			self.MoveAlongPathVelocity2(path)
 			print "------------------------------"
-			
+			print "Finished Path"
 		else :
 			print "FAILED TO FIND PATH"
 
@@ -285,7 +285,7 @@ class rrt() :
 	def MoveAlongPathVelocity2(self, path) :
 		joint_velocity = 1
 		min_distance = .05
-		kp = 2.0
+		kp = 25.0
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
@@ -354,7 +354,7 @@ class rrt() :
 					rospy.sleep(.050)
 
 	def MoveAlongPathVelocity(self, path) :
-		path_speed = .8
+		path_speed = .4
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
@@ -525,7 +525,7 @@ class rrt() :
 					print "at %d Distance to Solution"%i
 					print end_distance
 					#check if qnear is close enough to opposite tree
-					if end_distance < delta and not self.Check_Line(nearest_solution,qnew) :
+					if end_distance < delta*2 and not self.Check_Line(nearest_solution,qnew) :
 						#the trees can reach each other to create the path
 						print path_a
 						print nearest_solution
@@ -552,7 +552,7 @@ class rrt() :
 					end_distance = scipy.spatial.distance.euclidean(qnew, nearest_solution)
 					print "Distance to Solution"
 					print end_distance
-					if end_distance < delta and not self.Check_Line(nearest_solution,qnew) :
+					if end_distance < delta*2 and not self.Check_Line(nearest_solution,qnew) :
 						print path_a
 						print qnew
 						atohere = path_from(path_a, qnew)
