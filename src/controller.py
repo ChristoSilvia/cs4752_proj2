@@ -193,6 +193,11 @@ class controller() :
         base_pose = Pose()
         base_pose.position = Vector3(wp[0],wp[1],wp[2])
         base_pose.orientation = Quaternion(wo[0],wo[1],wo[2],wo[3])
+        print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+        print type(req.action)
+        print type(req.limb)
+        print type(base_pose)
+        print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
         success = self.move_robot(req.action, req.limb, base_pose)
         return MoveRobotResponse(success)
 
