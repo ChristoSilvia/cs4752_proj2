@@ -70,13 +70,18 @@ class JointActionServer():
         # linear force response
         self.force_linear_equlibrium = 1.8
         self.force_slope = 0.025
-        
+       
+        self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec) 
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
         self.param_src = createService('set_parameters', SetParameters, self.parameter_response, limb_name)
         self.position_srv = createService('end_effector_position', EndEffectorPosition, self.get_position_response, limb_name)
         
         rospy.spin()
+
+    def set_normal_vec(self, args):
+        self.surface_normal = np.array([args.normal_vec.x, args.normal_vec.y, args.normal_vec.z])
+        return SetNormalVecResponse()
 
     def parameter_response(self, args):
         self.kp = args.kp
