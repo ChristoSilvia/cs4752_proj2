@@ -176,22 +176,6 @@ class JointActionServer():
         B[:,0] = T
         B[:,1:] = precomputed_positions.T
         # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
-        C = np.empty((n,4))
-        C[:,0] = T
-        C[:,1:] = corrector_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),C)
-        D = np.empty((n,4))
-        D[:,0] = T
-        D[:,1:] = proportional_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),D)
-        E = np.empty((n,4))
-        E[:,0] = T
-        E[:,1:] = integral_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}vcorrector-velocities-{0}.csv".format(paramtext,date,folder),E)
-        F = np.empty((n,4))
-        F[:,0] = T
-        F[:,1:] = derivative_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),F)
         loginfo("saved errors")
     
 	def draw_on_plane(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
@@ -220,18 +204,6 @@ class JointActionServer():
 
         actual_positions = np.empty((3,n))
         actual_positions[:,0] = self.get_position()
-
-        corrector_velocities = np.empty((3,n))
-        corrector_velocities[:,0] = np.zeros(3)
-        
-        proportional_velocities = np.empty((3,n))
-        proportional_velocities[:,0] = np.zeros(3)
-
-        integral_velocities = np.empty((3,n)) 
-        integral_velocities[:,0] = np.zeros(3)
-
-        derivative_velocities = np.empty((3,n))
-        derivative_velocities[:,0] = np.zeros(3)
 
         last_tangential_position_error = np.zeros(3)
         tangential_position_error_integral = np.zeros(3)
@@ -303,22 +275,6 @@ class JointActionServer():
         B[:,0] = T
         B[:,1:] = precomputed_positions.T
         # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
-        C = np.empty((n,4))
-        C[:,0] = T
-        C[:,1:] = corrector_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),C)
-        D = np.empty((n,4))
-        D[:,0] = T
-        D[:,1:] = proportional_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),D)
-        E = np.empty((n,4))
-        E[:,0] = T
-        E[:,1:] = integral_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}vcorrector-velocities-{0}.csv".format(paramtext,date,folder),E)
-        F = np.empty((n,4))
-        F[:,0] = T
-        F[:,1:] = derivative_velocities.T
-        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),F)
         loginfo("saved errors")
 
     def get_manipulability(self):
