@@ -115,8 +115,17 @@ def IterateImage(img) :
 
 def draw_image(image_name, detail) :
 	image = misc.imread(image_name)
+	rows,cols = image.shape
+	img_width = 300
+
+
+	M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
+
+	image = cv2.warpAffine(img,M,(cols*img_width/rows,img_width))
+
+
 	image = cv2.Canny(image,detail,detail)	
-	imshow()
+
 	paths = IterateImage(image)
 	print paths
 	return paths
