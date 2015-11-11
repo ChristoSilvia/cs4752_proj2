@@ -160,49 +160,52 @@ class rrt() :
 
 		#will endlessly take its current position and try to move to a random position
 		#while avoiding all obstacles
-		while True :
-			loginfo("Starting New Round of RRT Testing")
-			arm = Limb(self.limb)
-			angle_dict = arm.joint_angles()
-			joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+		loginfo("Starting New Round of RRT Testing")
+		arm = Limb(self.limb)
+		angle_dict = arm.joint_angles()
+		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+		qi = np.zeros(7)
+		for i in xrange(0,7) :
+			qi[i] = angle_dict['left_'+joints[i]]
+		while self.Check_Point(qi) : #true that there is an obstacle
+			print "QI is Not valid"
 			qi = np.zeros(7)
+			angle_dict = arm.joint_angles()
 			for i in xrange(0,7) :
 				qi[i] = angle_dict['left_'+joints[i]]
-			while self.Check_Point(qi) : #true that there is an obstacle
-				print "QI is Not valid"
-				qi = np.zeros(7)
-				angle_dict = arm.joint_angles()
-				for i in xrange(0,7) :
-					qi[i] = angle_dict['left_'+joints[i]]
-			
-			loginfo("STARTING TO SAMPLE QF")
+		
+		loginfo("STARTING TO SAMPLE QF")
+		qf = sample_cspace()
+		while self.Check_Point(qf) :
+			loginfo("INVALID QF TRYING NEW SAMPLE")
 			qf = sample_cspace()
-			while self.Check_Point(qf) :
-				loginfo("INVALID QF TRYING NEW SAMPLE")
-				qf = sample_cspace()
 
-			path = self.RRT_Connect_Planner(qi, qf, 5000)
-			if path :
-				
-				print "Found Path"
-				print path
-				self.MoveAlongPathVelocity2(path)
-				print "Simplifying"
-				path = self.simplify_path(path, len(path)/2)
-				print "--------------------------------------"
-				print path
-				print "Found Path Moving Along Path!"
-				
-				print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-				print qi
-				print '/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/'
-				print qf
-				print '--------**********************--------'
-				
-				print "------------------------------"
-				
-			else :
-				print "FAILED TO FIND PATH"
+		path = self.RRT_Connect_Planner(qi, qf, 5000)
+		if path :
+			
+			print "Found Path"
+			print path
+
+			for i in xrange(0, len(path)-2) :
+				if self.Check_Line(path[i], path[1+i]) :
+					print "DEEEEEEEEEEEEEEEPPPPPPPPPP ISSSSSSSUUUUUUEEEEEESSSSSS"
+
+			#self.MoveAlongPathVelocity2(path)
+			print "Simplifying"
+			path = self.simplify_path(path, len(path)/2)
+			print "--------------------------------------"
+			print path
+			
+			print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+			print qi
+			print '/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/'
+			print qf
+			print '--------**********************--------'
+			self.MoveAlongPathVelocity2(path)
+			print "------------------------------"
+			
+		else :
+			print "FAILED TO FIND PATH"
 
 		rospy.spin()
 
@@ -211,9 +214,9 @@ class rrt() :
 	
 
 	def MoveAlongPathVelocity2(self, path) :
-		joint_velocity = .3
-		min_distance = .10
-		kp = 6.0
+		joint_velocity = 1
+		min_distance = .05
+		kp = 3.0
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
@@ -238,6 +241,7 @@ class rrt() :
 				if deltaTime >= max_time :
 					deltaTime = max_time
 					ideal_pos = goal
+					start_vec = np.zeros(7)
 				else :
 					ideal_pos = start_vec*deltaTime*joint_velocity + start_p
 				current_p_dict = arm.joint_angles()
@@ -250,7 +254,7 @@ class rrt() :
 				correction_dire = current_to_ideal
 				if np.linalg.norm(current_to_ideal) != 0:
 					correction_dire = current_to_ideal/np.linalg.norm(current_to_ideal)
-				to_goal_vector =  correction_dire*kp + start_vec*(1-deltaTime/max_time) # vector .5
+				to_goal_vector =  correction_dire*kp + start_vec#*(1-deltaTime/max_time) # vector .5
 				
 				to_goal_norm = to_goal_vector
 				if np.linalg.norm(to_goal_vector) != 0:
@@ -444,12 +448,19 @@ class rrt() :
 					#check if qnear is close enough to opposite tree
 					if not self.Check_Line(nearest_solution,qnew) :
 						#the trees can reach each other to create the path
-						atohere = path_from(path_a, nearest_solution).reverse()
+						print path_a
+						print nearest_solution
+						atohere = path_from(path_a, nearest_solution)
+						atohere.reverse()
 						heretob = path_from(path_b, qnew)
+						print "atohere"
+						print atohere
 						if atohere == [] or atohere == None:
+							print "atohere"
 							print "How can atohere be empty??"
 							return heretob
-						return atohere.append(heretob)
+						atohere.append(heretob)
+						return atohere
 					
 				#do opposite as above for this case
 				else :
@@ -461,12 +472,18 @@ class rrt() :
 					print "Distance to Solution"
 					print end_distance
 					if not self.Check_Line(nearest_solution,qnew) :
-						atohere = path_from(path_a, qnew).reverse()
+						print path_a
+						print qnew
+						atohere = path_from(path_a, qnew)
+						atohere.reverse()
+						print "atohere"
+						print atohere
 						heretob = path_from(path_b,nearest_solution)
 						if atohere == [] or atohere == None:
 							print "How can atohere be empty??"
 							return heretob
-						return atohere.append(heretob)
+						atohere.append(heretob)
+						return atohere
 
 		print "Failed to find path in k steps"
 		return []
