@@ -41,9 +41,13 @@ class JointActionServer():
         self.extra_motion_multiple = 1.1
         
         # free-movement PID parameters
-        self.kp = 1.5
-        self.ki = 0.72
-        self.kd = -0.0054
+        self.position_kp = 1.5
+        self.position_ki = 0.72
+        self.position_kd = -0.0054
+
+        self.force_kp = 0.1
+        self.force_ki = 0.0
+        self.force_kd = 0.0
 
         # self.kp = 0.01
         # self.ki = 0.01
@@ -52,14 +56,11 @@ class JointActionServer():
 
         # normal direction
         self.surface_normal = np.array([0.0, 0.0, 1.0])
+        self.tangential_1 = np.array([1.0, 0.0, 0.0])
+        self.tangential_2 = np.array([0.0, 1.0, 0.0])
         
         self.force_adjustments = True
-        self.force_min_threshold = 1.0
-        self.force_max_threshold = 2.0
-        self.force_induced_velocity = -0.005
-        # linear force response
-        self.force_linear_equlibrium = 1.8
-        self.force_slope = 0.025
+        self.desired_normal_force = 1.8
        
         self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec) 
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
@@ -128,9 +129,10 @@ class JointActionServer():
         derivative_velocities = np.empty((3,n))
         derivative_velocities[:,0] = np.zeros(3)
 
-        vx_proportional, vy_proportional, vz_proportional = 0.0, 0.0, 0.0
-        last_vx_proportional, last_vy_proportional, last_vz_proportional = 0.0, 0.0, 0.0
-        vx_integral, vy_integral, vz_integral = 0.0, 0.0, 0.0
+        last_tangential_position_error = np.zeros(3)
+        tangential_position_error_integral = np.zeros(3)
+        integral_of_force_error = 0.0
+        last_force_error = 0.0
 
         for i in xrange(1,n):
             t_start = rospy.get_time()
@@ -139,44 +141,42 @@ class JointActionServer():
                     self.get_joint_velocities(velocity_and_w)))
 
             time_interval = T[i] - T[i-1]           
- 
+
+            # get position 
             position = self.get_position()
-            vx_proportional = precomputed_positions[0,i] - position[0]
-            vy_proportional = precomputed_positions[1,i] - position[1]
-            vz_proportional = precomputed_positions[2,i] - position[2]
-            proportional_velocities = self.kp * np.array([vx_proportional, vy_proportional, vz_proportional])
+            position_error = precomputed_positions[:,i] - position
 
-            vx_integral += vx_proportional * time_interval
-            vy_integral += vy_proportional * time_interval
-            vz_integral += vz_proportional * time_interval
-            integral_velocities = self.ki * np.array([vx_integral, vy_integral, vz_integral])
-
-            vx_derivative = (vx_proportional - last_vx_proportional)/time_interval
-            vy_derivative = (vy_proportional - last_vy_proportional)/time_interval
-            vz_derivative = (vz_proportional - last_vz_proportional)/time_interval
-            derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
+            # compute tangential position error
+            tangential_position_error = position_error - self.surface_normal * np.dot(position_error, self.surface_normal)
+            # set position proportional_velocities
+            position_proportional_velocities = self.position_kp * tangential_position_error
             
-            loginfo(self.limb.endpoint_effort()['force'].z)
+            tangential_position_error_integral += tangential_position_error * time_interval
+            position_integral_velocities = self.position_ki * tangential_position_error_integral
+
+            tangential_position_error_derivative = (tangential_position_error - last_tangential_position_error)/time_interval
+            position_derivative_velocities = self.position_kd * tangential_position_error_derivative            
+
+            last_tangential_position_error = tangential_position_error
+
+            position_error_velocities = position_proportional_velocities + position_integral_velocities + position_derivative_velocities
+
+            # get normal force
             force_dict = self.limb.endpoint_effort()['force']
             force_vec = np.array([force_dict.x, force_dict.y, force_dict.z])
             normal_force = np.dot(force_vec, self.surface_normal)
 
-            if self.force_adjustments:
-                force_offset_velocity = self.force_slope * (force - self.force_linear_equlibrium)
-
-            vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative + force_offset_velocity * surface_normal[0]
-            vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative + force_offset_velocity * surface_normal[1]
-            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative + force_offset_velocity * surface_normal[2]
-            corrector_velocities[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
-           
-            velocity_and_w[0] = precomputed_velocities[0,i] + vx_corrector
-            velocity_and_w[1] = precomputed_velocities[1,i] + vy_corrector 
-            velocity_and_w[2] = precomputed_velocities[2,i] + vz_corrector
-
-            last_vx_proportional = vx_proportional
-            last_vy_proportional = vy_proportional
-            last_vz_proportional = vz_proportional
-
+            force_error = self.desired_normal_force - normal_force
+            integral_of_force_error += force_error * time_interval
+            derivative_of_force_error = (force_error - last_force_error)/time_interval
+            last_force_error = force_error
+            position_force_scalar = self.force_kp * force_error
+            integral_force_scalar = self.force_ki * integral_of_force_error
+            derivative_force_scalar = self.force_kd * derivative_of_force_error
+            force_error_velocities = self.surface_normal * (position_force_scalar + integral_force_scalar + derivative_force_scalar)
+            
+            velocity_and_w[0:2] = precomputed_velocities[:,i] + force_error_velocities + position_error_velocities
+            
             actual_positions[:,i] = position
  
             end_time = time_interval + t_start
