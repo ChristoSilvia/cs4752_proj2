@@ -39,7 +39,7 @@ def test():
     def evaluate_parameters(params):
         loginfo(params)
         L = 0.4
-        T_max = 7.0
+        T_max = 4.0
         v = L/T_max
         parameter_server(params[0],params[1],params[2],params[3],params[4])
  
@@ -55,15 +55,15 @@ def test():
     #K_i = 2.0 * K_eq / T_eq
     #K_d = 0.125 * K_eq * T_eq
 
-    K_p = 1.5 - 0.1
-    K_i = 0.72 + 0.2
-    K_d = -0.0054 + .10
+    K_p = 1.5 + 0.4
+    K_i = 0.72 + 0.8
+    K_d = 0.55
 
     # K_p = 10.0
     # K_i = 0.0
     # K_d = 0.0
 
-    guess_params = np.array([K_p, K_i, K_d, 0.00001, 1.1])
+    guess_params = np.array([K_p, K_i, K_d, 0.01, 1.1])
     evaluate_parameters(guess_params)
     # sweet_params = minimize(evaluate_parameters, 
     #                        np.array([0.01, 0.01, 0.0001, 0.05, 2.0]),

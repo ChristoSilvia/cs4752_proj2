@@ -32,7 +32,7 @@ class JointActionServer():
         self.joint_names = self.limb.joint_names()
         
         # time discretization paramters
-        self.dt = 0.01
+        self.dt = 0.008
         self.deriv_step = 1e-5
         self.secondary_objective = True
 
@@ -63,9 +63,10 @@ class JointActionServer():
         self.ki_normal = 0.01
         self.kd_normal = 0.0
 
-        self.force_adjustments = False
-        self.force_threshold = 0.05
-        self.force_induced_velocity = -0.01
+        self.force_adjustments = True
+        self.force_min_threshold = 1.0
+        self.force_max_threshold = 2.0
+        self.force_induced_velocity = -0.005
         
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
@@ -122,7 +123,7 @@ class JointActionServer():
         proportional_velocities = np.empty((3,n))
         proportional_velocities[:,0] = np.zeros(3)
 
-        integral_velocities = np.empty((3,n))
+        integral_velocities = np.empty((3,n)) 
         integral_velocities[:,0] = np.zeros(3)
 
         derivative_velocities = np.empty((3,n))
@@ -156,7 +157,14 @@ class JointActionServer():
             vz_derivative = (vz_proportional - last_vz_proportional)/time_interval
             derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
             
-            force_offset = 0.0 if np.abs(self.limb.endpoint_effort()['force'].z) < self.force_threshold and self.force_adjustments else self.force_induced_velocity
+            loginfo(self.limb.endpoint_effort()['force'].z)
+            force = np.abs(self.limb.endpoint_effort()['force'].z)
+            if force > self.force_max_threshold:
+                force_offset = -self.force_induced_velocity
+            elif force > self.force_min_threshold:
+                force_offset = 0.0
+            else:
+                force_offset = self.force_induced_velocity
 
             vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative
             vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative
@@ -188,7 +196,7 @@ class JointActionServer():
         A = np.empty((n,4))
         A[:,0] = T
         A[:,1:] = actual_positions.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}actual-positions-{0}.csv".format(paramtext,date,folder),A)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}actual-positions-{0}.csv".format(paramtext,date,folder),A)
         B = np.empty((n,4))
         B[:,0] = T
         B[:,1:] = precomputed_positions.T
