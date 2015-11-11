@@ -12,7 +12,7 @@ def record():
 
 	while True:
         initial_time = rospy.get_time()
-        forces_vec3 = baxter_limb.endpoint_effort['force']
+        forces_vec3 = baxter_limb.endpoint_effort()['force']
 		forces = np.array([forces_vec3.x, forces_vec3.y, forces_vec3.z])
 
         print "===========\nEndpoint Forces: \nF_x: {x} \nF_y: {y} \nF_z: {z}\n===========\n".format(forces_vec3)
