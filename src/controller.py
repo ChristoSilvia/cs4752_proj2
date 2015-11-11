@@ -31,7 +31,7 @@ class controller() :
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
         self.move_plane_traj_srv = createService('move_plane_traj', JointAction, self.handle_move_plane_traj, "left")
 
-        self.get_plane_normal_srv = createService('get_plane_normal', EndEffectorPosition, self.get_plane_normal, "")
+        self.set_plane_normal_srv = createServiceProxy('set_plane_normal', SetPlaneNormal, "")
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
         
@@ -40,6 +40,7 @@ class controller() :
 
 
         self.joint_action_server = createServiceProxy("move_end_effector_trajectory", JointAction, "left")
+        self.draw_on_plane = createServiceProxy("draw_on_plane", JointAction, "left")
         self.position_server = createServiceProxy("end_effector_position", EndEffectorPosition, "left")
         # self.tool_trajectory = createServiceProxy("move_tool_trajectory", JointAction, "left")
         # self.tool_position_server = createServiceProxy("tool_position", EndEffectorPosition, "left")
@@ -86,9 +87,6 @@ class controller() :
 
         self.tf_br.sendTransform(t)
 
-    def get_plane_normal(self):
-        return EndEffectorPositionResponse(self.plane_norm)
-
     def calibrate_plane(self):
         point_count = 0
         point_pos = []
@@ -105,6 +103,7 @@ class controller() :
         vec2 = point_pos[2] - point_pos[0]
         
         self.plane_norm = np.cross(vec1, vec2)
+        self.set_plane_normal_srv(Vector3(self.plane_norm[0], self.plane_norm[1], self.plane_norm[2]))
         # plane_origin = np.average(point_pos, axis=0)
         plane_origin = point_pos[0]
 
@@ -261,7 +260,7 @@ class controller() :
         self.fig.canvas.draw()
 
 
-        self.joint_action_server(plane_traj_msg.times, positions, velocities) 
+        self.draw_on_plane(plane_traj_msg.times, positions, velocities) 
 
 
 if __name__ == '__main__':
