@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <title>OpenType Bezier Curve Typewriter</title>
     <script type="text/javascript" src="../dist/opentype.js"></script>
-    <script type="text/javascript" src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
-    <script type="text/javascript" src="http://cdn.robotwebtools.org/roslibjs/current/roslib.min.js"></script>
-    <script type="text/javascript" type="text/javascript"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script type="text/javascript" src="../dist/eventemitter2.min.js"></script>
+    <script type="text/javascript" src="../dist/roslib.min.js"></script>
+    <script src="../dist/jquery.min.js"></script>
     <style></style>
 </head>
 <body>
@@ -16,8 +15,12 @@
         <div>
             Text:
             <input type="text" id="input">
+            Font:
+            <input type="text" id="font" value="Roboto-Black.ttf">
             Font Size:
-            <input type="number" id="fontsize" min="10" max="2048" value="100">
+            <input type="number" id="fontsize" min="10" max="2048" value="15">
+            Speed (m/s):
+            <input type="number" id="speed" min="0.00" max=".10" value=".02" step=".005">
             <input type="submit">
         </div>
     </form>
@@ -34,11 +37,13 @@
     function getInput() {
         text = document.getElementById("input").value;
         fontsize = parseInt(document.getElementById("fontsize").value);
+        speed = parseFloat(document.getElementById("speed").value);
         // alert("Sending: "+text);
         resetPlot();
         // font = 'Pacifico.ttf'
         font = 'Roboto-Black.ttf'
-        stringToPathMsg(font, text, fontsize);
+        font = document.getElementById("font").value;
+        stringToPathMsg(font, text, fontsize, speed);
         event.preventDefault();
     }
 
@@ -111,10 +116,10 @@
         cmd_path_pub.publish(resetMsg);
     }
 
-    function sendSize(fontsize) {
+    function sendSpeed(speed) {
         var sizeMsg = new ROSLIB.Message({
             type : "S",
-            x : fontsize,
+            x : speed,
             x1 : 0.0,
             x2 : 0.0,
             y : 0.0,
@@ -124,7 +129,7 @@
         cmd_path_pub.publish(sizeMsg);
     }
 
-    function stringToPathMsg(font,text,fontSize) {
+    function stringToPathMsg(font,text,fontSize,speed) {
         opentype.load('../fonts/'+font, function(err, font) {
             if (err) {
                 alert('Could not load font: ' + err);
@@ -139,7 +144,7 @@
                 var paths = outFont.getPath(text, 0, 0, fontSize);
                 console.log(paths);
 
-                sendSize(fontSize);
+                sendSpeed(speed);
 
                 for (var p = 0; p < paths.commands.length; p++) {
                     var cmd = paths.commands[p];

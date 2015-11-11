@@ -1,0 +1,136 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+
+\DeclareMathOperator{\tr}{tr}
+
+\begin{document}
+
+\title{Summary of Secondary Objective Function}
+\author{Christopher Silvia, Isaac Quereshi, Zachary Vineager}
+
+\maketitle
+
+\begin{abstract}
+This document summarizes the implementation of a secondary objective
+	function for velocity kinematics on Baxter.
+First, the jacobian is computed at the arm's current location.
+Because the arm is assumed to start at a nonsingular location, the jacobian,
+	which is a 6x7 matrix, has a one dimensional kernel, and therefore
+	the solutions to $\xi = J \dot{q}$ can be written $a + b t$,
+	for $a, b \in \mathbb{R}^7$ and $t \in \mathbb{R}$.
+The secondary objective function attempts to maximize manipulability
+	by choosing $t$ to maximize the cosine of the angle between 
+	$\dot{q}$ and the gradient of manipulability.
+So that the joint motions are not drastic, we limit the total joint velocities
+	$\dot{q}$ to a maximum norm.
+This secondary objective function maximizes manipulability, and tends to place
+	the elbows at right angles.
+It does not explicitly avoid exceeding the joint angles, however it will tend
+	to avoid singularities.
+\end{abstract}
+
+\section{Solving for Joint Velocities}
+
+In this section, we explicitly solve for the joint velocities $\dot{q}$ which
+	achieve a desired end-effector twist $\xi$.
+
+\subsection{Definition and Properties of the Jacobian}
+
+The velocities are related by the jacobian matrix, which is a linearization
+	of the velocity kinematics.
+The jacobian matrix is defined by the following equation:
+
+\begin{align}
+	\xi & = J(q) \dot{q} \label{eq-def-of-jacobian}
+\end{align}
+
+Note that since Baxter has 7 joints and the end-effector twist contains 6
+	components, the jacobian matrix is 6x7.
+Therefore, assuming that the jacobian has full rank, it has a one-dimensional
+	kernel.
+Any solution of (\ref{eq-def-of-jacobian}) for a fixed $\xi$ is therefore
+	not unique.
+
+\subsection{Using the Pseudoinverse to Solve (\ref{eq-def-of-jacobian}) for
+	given $\xi$}
+
+\subsection{Finding the Kernel of $J$}
+
+
+\section{Finding the Gradient of Manipulability}
+
+If $J(q)$ is the jacobian, the manipulability is defined by:
+
+\begin{align}
+	\mu(q) & = \sqrt{ \det \left( J(q) J(q)^T \right) }  \label{eq-def-of-mu}
+\end{align}
+
+To find the gradient of $\mu(q)$:
+
+\begin{align*}
+	\frac {\partial \mu(q)}{\partial q_i}
+		& = \frac 12 \frac {\frac{\partial}{\partial q_i} \det \left( J J^T \right)}
+			{ \sqrt{ \det \left( J J^T \right) }}\\
+		& = \frac 12 \frac {\det \left( J J^T\right) 
+			\tr \left( (J J^T)^{-1} \frac{\partial}{\partial q_i} (J J^T) \right)}
+		{\mu(q)}\\
+		& = \frac{\mu(q)}2 \tr \left( (J J^T)^{-1} \frac{\partial}{\partial q_i} (J J^T) \right)
+\end{align*} 
+
+We don't actually have to compute $\nabla \mu(q)$, however:
+	since we want to maximize the cosine of the angle between $\nabla \mu$,
+	and $a + b t$, as long as we know the sign of $\nabla \mu(q)$, its magnitude
+	is irrelevant.
+Therefore, we can define the auxiliary quantity $c$, which is:
+
+\begin{align}
+	c & = \tr \left( (J J^T)^{-1} \nabla (J J^T) \right) \label{eq-def-of-c}\\
+	& = \frac{2 }{\mu(q)} \nabla \mu(q) \nonumber
+\end{align}
+
+Since $\mu(q)$ is always positive (it is the positive branch of a square root),
+	the vector $c$ is therefore proportional to $\nabla \mu(q)$ and of the same
+	sign.
+Therefore, to maximize the cosine of the angle between $\dot{q}$ and $\nabla \mu(q)$,
+	it suffices to choose $t$ such that the cosine of the angle between $a + b t$
+	and $c$ is maximized.
+
+\section{Finding the optimal value of $t$}
+
+We have reduced the problem to choosing $t$ such that the cosine of the angle 
+	between $a + b t$ and $c$ is maximized.
+For vectors $x, y \in \mathbb{R}^n$, the cosine between them is given by:
+
+\begin{align}
+	\cos \theta & = \frac{x \cdot y}{|x| |y|} \label{eq-cosine}
+\end{align}
+
+Therefore, the cosine of the angle between $a + b t$ and $c$ is given by:
+
+\begin{align*}
+	\cos \theta & = \frac {( a + b t) \cdot c}{\sqrt{ (a + b t)^2} \sqrt{c^2}}
+\end{align*}
+
+To maximize this quantity, we differentiate by t, and set equal to zero:
+
+\begin{align*}
+	0 & = \frac{d}{dt} \left( 
+		\frac { a \cdot c + b \cdot c t}{\sqrt{ (a + b t)^2} \sqrt{c^2}} \right) \\
+\end{align*}	
+
+To determine which joint velocities $\dot{q}$ solve the equation for
+	the end-effector velocity $\xi$, $\xi = J \dot{q}$,
+	we first compute the pseudoinverse of $J$ and find $J^+ \xi$,
+	and then we compute the kernel of $J$.
+Since $J$ is assumed to be nonsingular, and it has six rows and seven columns,
+	its kernel is spanned by a single vector $a$.
+Therefore, for any $t \in \mathbb{R}$, $\dot{q} = J^+ \xi + a$ solves the equation
+	$\xi = J \dot q$.
+The problem is now reduced to finding the optimal value for $t$.
+
+The secondary objective function attempts to maximize the cosine of the 
+	angle between the j
+
+\end{document}
