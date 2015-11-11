@@ -7,6 +7,7 @@ from scipy import spatial
 from scipy.spatial import distance
 from scipy.spatial.distance import euclidean
 from scipy.spatial import KDTree 
+from numpy import linalg
 
 import rospy
 from cs4752_proj2.srv import *
@@ -181,16 +182,21 @@ class rrt() :
 
 			path = self.RRT_Connect_Planner(qi, qf, 5000)
 			if path :
-				self.MoveAlongPathVelocity(path)
+				
+				print "Found Path"
+				print path
+				print "Simplifying"
+				path = self.simplify_path(path, len(path)/2)
+				print "--------------------------------------"
+				print path
+				print "Found Path Moving Along Path!"
+				self.MoveAlongPathVelocity2(path)
 				print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 				print qi
 				print '/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/'
 				print qf
 				print '--------**********************--------'
-				print path
-				path = self.simplify_path(path, len(path)/2)
-				print "--------------------------------------"
-				print path
+				
 				print "------------------------------"
 				
 			else :
@@ -198,20 +204,70 @@ class rrt() :
 
 		rospy.spin()
 
-	def MoveAlongPathVelocity(self, path) :
-		path_speed = .1
+	def getJointAngles() :
+
+	
+
+	def MoveAlongPathVelocity2(self, path) :
+		joint_velocity = .3
+		min_distance = .05
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
+			print "Moving To Next Node In Path"
+			current_p_dict = arm.joint_angles()
+			start_p = np.zeros(7)
+			for i in xrange(0,7) :
+				start_p[i] = current_p_dict['left_'+joints[i]]
+			start_to_goal = goal - start_p
+			start_vec = (start_to_goal)/(np.linalg.norm(start_to_goal))
+			start_time = rospy.time.now()
 			
+			while True :
+				newTime = rospy.time.now()
+				deltaTime = newTime - start_time
+				ideal_pos = start_vec*deltaTime + start_p
+				current_p_dict = arm.joint_angles()
+				current_p = np.zeros(7)
+				for i in xrange(0,7) :
+					current_p[i] = current_p_dict['left_'+joints[i]]
+				distance = scipy.spatial.distance.euclidean(goal, current_p)
+				correction_vec = ideal_pos - current_p
+				correction_dire = correction_vec/np.linalg.norm(correction_vec)
+				to_goal_vector = (correction_dire + start_vec) / 2 * joint_velocity # vector .5
+				print 'distance to next pose :'
+				print distance
+				
+				if distance < min_distance :
+					to_goal_vector = np.zeros(7)
+
+				#to_goal_vector = ((goal - current_p)/distance)*path_speed
+				velocity_dict = {}
+				for i in xrange(0,7) :
+					velocity_dict['left_'+joints[i]] = to_goal_vector[i]
+
+				arm.set_joint_velocities(velocity_dict)
+
+				rospy.sleep(.1)
+				if distance < min_distance :
+					break
+
+	def MoveAlongPathVelocity(self, path) :
+		path_speed = .8
+		arm = Limb(self.limb)
+		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
+		for goal in path :
+			print "Moving To Next Node In Path"
 			while True :
 
 				current_p_dict = arm.joint_angles()
 				current_p = np.zeros(7)
 				for i in xrange(0,7) :
-					current_p[i] = current_p_dict['left_'+joint[i]]
+					current_p[i] = current_p_dict['left_'+joints[i]]
 				distance = scipy.spatial.distance.euclidean(goal, current_p)
-				if distance < .007 :
+				print distance
+				print 'distance'
+				if distance < .1 :
 					break
 
 				to_goal_vector = ((goal - current_p)/distance)*path_speed
@@ -281,7 +337,7 @@ class rrt() :
 				return path
 			p1 = random.randint(1,len(path)-2)
 			p2 = random.randint(1,len(path)-2)
-			while p1 == p2
+			while p1 == p2 :
 				p2 = random.randint(1,len(path)-2)
 			if not self.Check_Line(path[p1], path[p2]) :
 				#delete every segment before and after
@@ -362,6 +418,7 @@ class rrt() :
 						atohere = path_from(path_a, nearest_solution).reverse()
 						heretob = path_from(path_b, qnew)
 						if atohere == [] or atohere == None:
+							print "How can atohere be empty??"
 							return heretob
 						return atohere.append(heretob)
 					
@@ -378,6 +435,7 @@ class rrt() :
 						atohere = path_from(path_a, qnew).reverse()
 						heretob = path_from(path_b,nearest_solution)
 						if atohere == [] or atohere == None:
+							print "How can atohere be empty??"
 							return heretob
 						return atohere.append(heretob)
 
