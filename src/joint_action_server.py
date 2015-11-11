@@ -41,11 +41,11 @@ class JointActionServer():
         self.extra_motion_multiple = 1.1
         
         # free-movement PID parameters
-        self.kp = 1.5
-        self.ki = 0.72
-        self.kd = -0.0054
+        self.kp = 1.9
+        self.ki = 1.52
+        self.kd = 0.55
 
-        self.force_kp = 0.1
+        self.force_kp = 0.01
         self.force_ki = 0.0
         self.force_kd = 0.0
 
