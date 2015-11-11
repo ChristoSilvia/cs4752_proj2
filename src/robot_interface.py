@@ -136,6 +136,7 @@ class RobotInterface():
         return MoveRobotResponse(success)
 
     def MoveToPoseWithIntermediate(self, limb, pose, inter1=True, inter2=True, inter3=False) :
+        hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
         if inter1 :
             interpose1 = self.getOffsetPose(hand_pose, .05)
             b1 = self.MoveToPose(limb, interpose1, "MoveToIntermediatePose")

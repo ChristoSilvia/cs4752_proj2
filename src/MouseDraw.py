@@ -144,8 +144,7 @@ class MouseDraw() :
 
 		#rospy.wait_for_service('/')
 
-		rospy.wait_for_service("/move_robot_plane")
-		self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
+		self.move_robot_plane = createServiceProxy('move_robot_plane', MoveRobot, "")
 
 		loginfo("Initialized service proxy for /move_robot")
 

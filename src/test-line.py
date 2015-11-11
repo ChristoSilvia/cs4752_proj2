@@ -45,7 +45,7 @@ def test():
  
         HomePose()
         position = position_server().position
-        joint_action_server([0, T_max], [position, Vector3(position.x, position.y + L, position.z)], [Vector3(0,v,0),Vector3(0,v,0)])
+        joint_action_server([0, T_max, T_max*2], [position, Vector3(position.x, position.y + L, position.z), Vector3(position.x + L/2, position.y + L, position.z)], [Vector3(0,v,0),Vector3(0,v,0),Vector3(v,0,0)])
         HomePose()
 
     T_eq = 0.9
@@ -55,9 +55,9 @@ def test():
     #K_i = 2.0 * K_eq / T_eq
     #K_d = 0.125 * K_eq * T_eq
 
-    K_p = 1.5
-    K_i = 0.72
-    K_d = -0.0054
+    K_p = 1.5 - 0.1
+    K_i = 0.72 + 0.2
+    K_d = -0.0054 + .10
 
     # K_p = 10.0
     # K_i = 0.0

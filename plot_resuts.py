@@ -23,7 +23,8 @@ if len(sys.argv[1:]) == 0:
 else:
 	filenames = sys.argv[1:]
 n = 3
-color = iter(['r','g','b'])
+color = iter(['r','g','b','y','c','k','m'])
+
 # color=iter(cm.rainbow(np.linspace(0,1,n)))
 
 for a_file in filenames:
