@@ -9,6 +9,7 @@ from scipy.spatial import distance
 from scipy.spatial.distance import euclidean
 from scipy.spatial import KDTree 
 from numpy import linalg
+import matplotlib.pyplot as plt
 
 import rospy
 from cs4752_proj2.srv import *
@@ -46,6 +47,9 @@ def sample_2d() :
 	r[0] = np.random.rand(1)*5
 	r[1] = np.random.rand(1)*5
 	return r
+
+def Collision_Test2D(x,y) :
+	return (x < 3 or x >4) and (y < 3 or y >4)
 
 class Buffered_KD_Tree :
 	def __init__(self, qinit, k) :
@@ -156,6 +160,34 @@ class rrt() :
 
 		self.limb = 'left'
 		self.hand_pose = None
+
+		self.TWOD=1
+		self.CSPACE =2
+
+		self.mode = self.TWOD
+		self.DIMENSIONS = 2
+
+		self.figure = 
+		if self.mode == self.TWOD :
+			qi2 = sample_2d()
+			while Collision_Test2D(qi[0], qi[1]) :
+				qi2 = sample_2d()
+			qf2 = sample_2d()
+			while Collision_Test2D(qf[0], qf[1]) :
+				qf2 = sample_2d()
+			path = self.RRT_Connect_planner(qi2,qf2,5000)
+			if path :
+				print "2d path found"
+				for point in path :
+					pathx.append(point[0])
+					pathy.append(point[1])
+				plt.plot(pathx, pathy)
+				path = self.simplify_path(path)
+				for point in path :
+					pathx.append(point[0])
+					pathy.append(point[1])
+				plt.plot(pathx, pathy)
+
 
 
 		#will endlessly take its current position and try to move to a random position
@@ -390,6 +422,12 @@ class rrt() :
 
 		return path
 
+	def Draw_All_Paths(path_a, path_b) :
+		for (parent,child) in path_a :
+			plt.plot([parent[0], child[0]],[parent[1],child[1]])
+		for (parent,child) in path_b :
+			plt.plot([parent[0], child[0]],[parent[1],child[1]])
+
 	#given an initial and final array of joints, it will find a path to there
 	#avoiding any singularities and obstacles
 	def RRT_Connect_Planner(self, qinit, qgoal,k) :
@@ -455,13 +493,15 @@ class rrt() :
 						atohere = path_from(path_a, nearest_solution)
 						atohere.reverse()
 						heretob = path_from(path_b, qnew)
-						print "atohere"
-						print atohere
+						
+						if self.mode == self.TWOD :
+							Draw_All_Paths(path_a,path_b)
 						if atohere == [] or atohere == None:
 							print "atohere"
 							print "How can atohere be empty??"
 							return heretob
 						atohere.append(heretob)
+
 						return atohere
 					
 				#do opposite as above for this case
@@ -478,9 +518,10 @@ class rrt() :
 						print qnew
 						atohere = path_from(path_a, qnew)
 						atohere.reverse()
-						print "atohere"
-						print atohere
 						heretob = path_from(path_b,nearest_solution)
+
+						if self.mode == self.TWOD :
+							Draw_All_Paths(path_a,path_b)
 						if atohere == [] or atohere == None:
 							print "How can atohere be empty??"
 							return heretob
