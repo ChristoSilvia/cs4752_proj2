@@ -50,19 +50,9 @@ class JointActionServer():
         # self.kd = 0.0
         # self.dt = 0.012
 
-        # Whiteboard PID parameters
-        self.on_whiteboard = False
         # normal direction
         self.surface_normal = np.array([0.0, 0.0, 1.0])
-        # tangent
-        self.kp_tangent = 0.01
-        self.ki_tangent = 0.01
-        self.kd_tangent = 0.0
-        # normal
-        self.kp_normal = 0.01
-        self.ki_normal = 0.01
-        self.kd_normal = 0.0
-
+        
         self.force_adjustments = True
         self.force_min_threshold = 1.0
         self.force_max_threshold = 2.0
