@@ -30,6 +30,8 @@ class controller() :
 
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
         self.move_plane_traj_srv = createService('move_plane_traj', JointAction, self.handle_move_plane_traj, "left")
+
+        self.get_plane_normal_srv = createService('get_plane_normal', EndEffectorPosition, self.get_plane_normal, "")
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
         
@@ -46,6 +48,7 @@ class controller() :
 
         self.got_plane_traj = False
         self.calibrated_plane = False
+        self.plane_norm = Vector3()
         # self.calibrate_plane()
 
         #Generate the figure
@@ -82,6 +85,9 @@ class controller() :
         t.transform.rotation.w = q[3]
 
         self.tf_br.sendTransform(t)
+
+    def get_plane_normal(self):
+        return EndEffectorPositionResponse(self.plane_norm)
 
     def calibrate_plane(self):
         point_count = 0
