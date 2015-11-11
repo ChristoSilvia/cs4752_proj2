@@ -189,7 +189,7 @@ class MouseDraw() :
 		self.canvas.bind('c', self.Clear)
 
 
-		filename = askopenfilename(initialdir="~/ros_ws/src/cs4752_proj2/") 
+		filename = askopenfilename(initialdir="~/ros_ws/src/cs4752_proj2/img/") 
 		image_path = draw_image(filename, 150)
 		print len(image_path)
 		self.sendImagePath(image_path)

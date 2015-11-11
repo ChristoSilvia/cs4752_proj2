@@ -452,7 +452,7 @@ def bezier():
 	plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
 	plane_traj_srv = createServiceProxy('move_plane_traj', JointAction, "left")
 
-	plt.show()
+	# plt.show()
 	# rospy.spin()
 
 if __name__ == "__main__":

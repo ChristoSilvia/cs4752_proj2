@@ -27,6 +27,9 @@ class RobotInterface():
         self.gripper_left = Gripper('left')
         self.gripper_right = Gripper('right')
 
+        # self.initial_left = Pose()
+        # self.initial_right = Pose()
+
         rospy.Subscriber("/robot/limb/left/endpoint_state", EndpointState, self.respondToEndpointLeft)
         rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self.respondToEndpointRight)
         
@@ -63,8 +66,12 @@ class RobotInterface():
         self.hand_pose_right = deepcopy(EndpointState.pose)
 
     def handle_move_robot(self, req):
+        rospy.sleep(1)
         success = True
         gripper = self.gripper_left if req.limb == 'left' else self.gripper_right
+        
+        if not (req.limb == 'left' or req.limb == 'right'):
+            rospy.logerr("No Limb Set")
 
         if req.action == OPEN_GRIPPER:
             rospy.loginfo("Beginning to open gripper")
@@ -90,8 +97,34 @@ class RobotInterface():
 
         elif req.action == MOVE_TO_POS :
             rospy.loginfo("Trying to Move To Pos")
-            hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
-            new_pose = deepcopy(hand_pose)
+
+            new_pose = Pose()
+            if req.limb == 'left':
+                try:
+                    self.initial_left
+                    new_pose = deepcopy(self.initial_left)
+                    print "888888888888888888888888888888888888888888888888"
+                    print "Using the init left"
+                except AttributeError:
+                    new_pose = deepcopy(self.hand_pose_left)
+                    self.initial_left = deepcopy(self.hand_pose_left)
+                    print "888888888888888888888888888888888888888888888888"
+                    print "setting the init left"
+            elif req.limb == 'right':
+                try:
+                    self.initial_right
+                    new_pose = deepcopy(self.initial_right)
+                    print "888888888888888888888888888888888888888888888888"
+                    print "Using the init right"
+                except AttributeError:
+                    new_pose = deepcopy(self.hand_pose_right)
+                    self.initial_right = deepcopy(self.hand_pose_right)
+                    print "888888888888888888888888888888888888888888888888"
+                    print "setting the init right"
+
+            print new_pose.orientation
+            print "888888888888888888888888888888888888888888888888"
+
             new_pose.position = deepcopy(req.pose.position)
             # success = self.MoveToPose(req.limb, new_pose, "FAILED MoveToPose")
             success = self.MoveToPoseWithIntermediate(req.limb, new_pose)
@@ -103,23 +136,17 @@ class RobotInterface():
         return MoveRobotResponse(success)
 
     def MoveToPoseWithIntermediate(self, limb, pose, inter1=True, inter2=True, inter3=False) :
-        hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
-        new_pose = deepcopy(hand_pose)
-        new_pose.position = pose.position
-        # if inter1 :
-        #     interpose1 = self.getOffsetPose(hand_pose, .05)
-        #     b1 = self.MoveToPose(limb, interpose1, "MoveToIntermediatePose")
-        # if inter2 :
-        #     interpose2 = self.getOffsetPose(new_pose, .05)
-        #     b2 = self.MoveToPose(limb, interpose2, "MoveToIntermediatePose")
-        # if inter3 :
-        #     interpose2 = self.getOffsetPose(new_pose, .01)
-        #     b3 = self.MoveToPose(limb, interpose2, "MoveToRightAbovePose")
+        if inter1 :
+            interpose1 = self.getOffsetPose(hand_pose, .05)
+            b1 = self.MoveToPose(limb, interpose1, "MoveToIntermediatePose")
+        if inter2 :
+            interpose2 = self.getOffsetPose(pose, .05)
+            b2 = self.MoveToPose(limb, interpose2, "MoveToIntermediatePose")
+        if inter3 :
+            interpose2 = self.getOffsetPose(pose, .01)
+            b3 = self.MoveToPose(limb, interpose2, "MoveToRightAbovePose")
         
-        b4 = self.MoveToPose(limb, new_pose, "MoveToPose")
-        # print "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^6"
-        # print new_pose
-        # print "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^6"
+        b4 = self.MoveToPose(limb, pose, "MoveToPose")
         return b4
 
     def MoveToPose(self, limb, pose, name) :
