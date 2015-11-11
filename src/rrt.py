@@ -222,6 +222,10 @@ class rrt() :
 			start_p = np.zeros(7)
 			for i in xrange(0,7) :
 				start_p[i] = current_p_dict['left_'+joints[i]]
+			if self.Check_Line(start_p, goal) :
+				print "******************************************************"
+				print "COLLISION IN PATH. RRT IS FLAWED"
+				print "======================================================"
 			start_to_goal = goal - start_p
 			start_vec = (start_to_goal)/(np.linalg.norm(start_to_goal))
 			start_time = time.time()
