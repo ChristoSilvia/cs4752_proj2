@@ -32,23 +32,23 @@ class JointActionServer():
         self.joint_names = self.limb.joint_names()
         
         # time discretization paramters
-        # self.dt = 0.01
+        self.dt = 0.01
         self.deriv_step = 1e-5
-        self.secondary_objective = False
+        self.secondary_objective = True
 
         # secondary objective parameters
-        self.extra_motion_maximum = 0.05
-        self.extra_motion_multiple = 2.0
+        self.extra_motion_maximum = 0.00
+        self.extra_motion_multiple = 1.1
         
         # free-movement PID parameters
-        # self.kp = 1.5
-        # self.ki = 0.72
-        # self.kd = -0.0054
+        self.kp = 1.5
+        self.ki = 0.72
+        self.kd = -0.0054
 
-        self.kp = 0.01
-        self.ki = 0.01
-        self.kd = 0.0
-        self.dt = 0.012
+        # self.kp = 0.01
+        # self.ki = 0.01
+        # self.kd = 0.0
+        # self.dt = 0.012
 
         # Whiteboard PID parameters
         self.on_whiteboard = False
@@ -213,44 +213,37 @@ class JointActionServer():
     def get_joint_velocities(self, workspace_velocity_and_w):
         J = np.asarray(self.limb_kin.jacobian())
         Jplus = np.linalg.pinv(J)
+
+        b = np.dot(Jplus, workspace_velocity_and_w)
+
         if not self.secondary_objective:
-            return np.dot(Jplus, workspace_velocity_and_w)
+            return b
         else:
             rank, nullspace = null(J)
-            Jb = np.empty(7)
-            for i in xrange(7):
-                Jb[i] = nullspace[i,0]
+            Jb = nullspace[:,0]
     
             J_squared = np.dot(J, J.T)
             J_squared_inv = np.linalg.inv(J_squared)
+
             direction_of_manipulability = np.empty(7)
             for i in xrange(0,7):
+
                 angles = self.limb.joint_angles()
-    #            loginfo("Current Joint angles: {0}".format(angles))
+
                 angles[self.joint_names[i]] += self.deriv_step
                 deltaJ = self.limb_kin.jacobian(joint_values=angles)
                 dJ = (deltaJ - J)/self.deriv_step
-    #            loginfo("Manipulability Derivatives: {0}".format(dJ))
+
                 dJSquared = np.dot(J,dJ.T) + np.dot(dJ,J.T)
+
                 trace = 0.0
-    #            loginfo("J_squared_inv: {0}".format(J_squared_inv))
-    #            loginfo("dJSquared: {0}\n{1} rows and {2} columns".format(dJSquared,dJSquared.shape[0],dJSquared.shape[1]))
-    #            loginfo("Their Product: {0}".format(np.dot(J_squared_inv, dJSquared)))
                 for j in xrange(0,6):
                     for k in xrange(0,6):
                         trace += J_squared_inv[j,k] * dJSquared[k,j]
+
                 direction_of_manipulability[i] = trace
-    #        loginfo("Direction of Manipulability: {0}".format(direction_of_manipulability))
-            b = np.dot(Jplus, workspace_velocity_and_w)
-            mag_b_squared = np.dot(b,b)
-    #        loginfo("Pseudoinverted b: {0}".format(b)) 
-    #        loginfo("Jb: {0}".format(Jb))
-    #        loginfo("Direction of Manipulatbility: {0}".format(direction_of_manipulability))
-    #        loginfo("Joint Velocity Limit: {0}".format(0.1 + 5*mag_b_squared))
-    #        loginfo("b: {0}".format(b))
-    #        loginfo("Jb: {0}".format(Jb))
-    #        loginfo("dmu: {0}".format(direction_of_manipulability))
-            return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , self.extra_motion_multiple*mag_b_squared + self.extra_motion_maximum)
+
+            return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , self.extra_motion_multiple*np.dot(b,b) + self.extra_motion_maximum)
 
     def make_joint_dict(self, joint_vector):
         joint_dict = {}
@@ -318,6 +311,7 @@ def maximize_cosine_constrained(a,b,c,n2):
     ab_over_aa = ab/aa
     lower_root = - ab_over_aa - np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
     upper_root = - ab_over_aa + np.sqrt(ab_over_aa**2 + (n2 - bb)/aa)
+
     s = (bc*ab - bb*ac)/(ab*ac - aa*bc)
     is_maximum = 2*ab*ac*s*s + (ab*ab*ac + 3*aa*ac*bb)*s + (aa*bc + 2*ab*ac)*bb > 2*bc*aa*aa*s*s + bc*ab*ab
     if is_maximum:

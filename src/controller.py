@@ -43,20 +43,27 @@ class controller() :
         # self.tool_trajectory = createServiceProxy("move_tool_trajectory", JointAction, "left")
         # self.tool_position_server = createServiceProxy("tool_position", EndEffectorPosition, "left")
 
-        self.tf_br = tf2_ros.TransformBroadcaster()
+        # self.tf_br = tf2_ros.TransformBroadcaster()
 
         self.got_plane_traj = False
         self.calibrated_plane = False
         # self.calibrate_plane()
 
+        #Generate the figure
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+        self.ax.hold(True)
+        plt.show()
 
-        rate = rospy.Rate(30)
-        while not rospy.is_shutdown():
-            if self.got_plane_traj or self.calibrated_plane:
-                self.sendTransform()
-            rate.sleep()
 
-        # rospy.spin()
+
+        # rate = rospy.Rate(30)
+        # while not rospy.is_shutdown():
+        #     if self.got_plane_traj or self.calibrated_plane:
+        #         self.sendTransform()
+        #     rate.sleep()
+
+        rospy.spin()
 
     def sendTransform(self):
         self.transform_setup()        
@@ -123,7 +130,7 @@ class controller() :
 
         self.calibrated_plane = True
 
-        self.sendTransform()
+        # self.sendTransform()
 
 
     def get_tool_pos(self):
@@ -192,14 +199,13 @@ class controller() :
         wo = self.PlaneToBaseOrientation(po.x,po.y,po.z,po.w)
         base_pose = Pose()
         base_pose.position = Vector3(wp[0],wp[1],wp[2])
+        base_pose.position = Vector3(wp[0],wp[1],wp[2])
         base_pose.orientation = Quaternion(wo[0],wo[1],wo[2],wo[3])
-        print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-        print type(req.action)
-        print type(req.limb)
-        print type(base_pose)
-        print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-        success = self.move_robot(req.action, req.limb, base_pose)
-        return MoveRobotResponse(success)
+        resp = self.move_robot(req.action, req.limb, base_pose)
+        return MoveRobotResponse(resp.success)
+
+    def vector3_to_np(self,v):
+        return np.array([v.x,v.y,v.z])
 
     def plane_trajCb(self, plane_traj_msg):
         self.got_plane_traj = True
@@ -212,12 +218,14 @@ class controller() :
         for i in range(0,len(plane_traj_msg.positions)):
             pp = plane_traj_msg.positions[i]
             wp = self.PlaneToBasePoint(pp.x,pp.y,pp.z+zoffset)
-            P = np.append(P, [pp], axis=0)
+            pp = self.vector3_to_np(pp).reshape((1, 3))
+            P = np.append(P, pp, axis=0)
             positions.append(Vector3(wp[0],wp[1],wp[2]))
 
             pv = plane_traj_msg.velocities[i]
             wv = self.PlaneToBaseDir(pv.x,pv.y,pv.z)
-            V = np.append(V, [pv], axis=0)
+            pv = self.vector3_to_np(pv).reshape((1, 3))
+            V = np.append(V, pv, axis=0)
             velocities.append(Vector3(wv[0],wv[1],wv[2]))
 
         print "############### Recieved plane_traj_msg ##################"
@@ -236,8 +244,9 @@ class controller() :
         print V
         print "##########################################################"
 
-        plt.plot(P[:,0],P[:,1])
-        plt.show()
+        self.ax.plot(P[:,0],P[:,1])
+        self.fig.canvas.draw()
+
 
         # self.joint_action_server(plane_traj_msg.times, positions, velocities) 
 
