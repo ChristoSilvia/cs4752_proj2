@@ -36,16 +36,17 @@ def test():
     draw_end_effector = createServiceProxy('draw_on_plane',JointAction,limb)
     position_server = createServiceProxy("end_effector_position",EndEffectorPosition,limb)
     parameter_server = createServiceProxy("set_parameters",SetParameters,limb)
+    loginfo("initialized service proxies")
 
     def evaluate_parameters(params):
         loginfo(params)
         L = 0.4
-        T_max = 4.0
+        T_max = 7.0
         v = L/T_max
         parameter_server(params[0],params[1],params[2],params[3],params[4])
  
         position = position_server().position
-        draw_end_effector([0, T_max, T_max*2], [position, Vector3(position.x, position.y + L, position.z), Vector3(position.x + L/2, position.y + L, position.z)], [Vector3(0,v,0),Vector3(0,v,0),Vector3(v,0,0)])
+        move_end_effector([0, T_max, T_max*2], [position, Vector3(position.x, position.y + L, position.z), Vector3(position.x + L/2, position.y + L, position.z)], [Vector3(0,v,0),Vector3(0,v,0),Vector3(v,0,0)])
 
     T_eq = 0.9
     K_eq = 6.0

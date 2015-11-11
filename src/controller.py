@@ -32,7 +32,7 @@ class controller() :
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
         self.move_plane_traj_srv = createService('move_plane_traj', JointAction, self.handle_move_plane_traj, "left")
 
-        self.set_plane_normal_srv = createServiceProxy('set_plane_normal', SetPlaneNormal, "")
+        self.set_plane_normal_srv = createServiceProxy('set_normal_vec', SetNormalVec, "")
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
         
@@ -51,7 +51,7 @@ class controller() :
         self.got_plane_traj = False
         self.calibrated_plane = False
         self.plane_norm = Vector3()
-        # self.calibrate_plane()
+        self.calibrate_plane()
 
         #Generate the figure
         self.fig = plt.figure()
@@ -256,8 +256,12 @@ class controller() :
         self.ax.plot(P[:,0],P[:,1])
         self.fig.canvas.draw()
 
+        force_control = False
+        if force_control:
+            self.draw_on_plane(plane_traj_msg.times, positions, velocities)
+        else:
+            self.joint_action_server(plane_traj_msg.times, positions, velocities)
 
-        self.draw_on_plane(plane_traj_msg.times, positions, velocities) 
 
 
 if __name__ == '__main__':

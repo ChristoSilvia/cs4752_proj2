@@ -45,8 +45,8 @@ class JointActionServer():
         self.ki = 1.52
         self.kd = 0.55
 
-        self.force_kp = 0.01
-        self.force_ki = 0.0
+        self.force_kp = 0.002
+        self.force_ki = 0.0005
         self.force_kd = 0.0
 
         # self.kp = 0.01
@@ -60,9 +60,9 @@ class JointActionServer():
         self.tangential_2 = np.array([0.0, 1.0, 0.0])
         
         self.force_adjustments = True
-        self.desired_normal_force = 1.8
+        self.desired_normal_force = -1.0
        
-        self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec, limb_name) 
+        self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec, "") 
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.draw_on_plane_service = createService('draw_on_plane', JointAction, self.move_draw_on_plane, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
@@ -72,7 +72,7 @@ class JointActionServer():
         rospy.spin()
 
     def set_normal_vec(self, args):
-        self.surface_normal = np.array([args.normal_vec.x, args.normal_vec.y, args.normal_vec.z])
+        self.surface_normw_on_plane_serviceal = np.array([args.normal_vec.x, args.normal_vec.y, args.normal_vec.z])
         return SetNormalVecResponse()
 
     def parameter_response(self, args):
@@ -98,17 +98,47 @@ class JointActionServer():
         return JointActionResponse()
 
     def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
+                
+        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
+        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
+        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
         
-        T, precomputed_positions, precomputed_velocities, n = self.compute_positions_velocities(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
+        T = np.arange(0, times[-1], self.dt)
+        n = len(T)
 
         velocity_and_w = np.zeros(6)
-        velocity_and_w[0:3] = precomputed_velocities[:,0]
-        
+        velocity_and_w[0] = xinterpolator.derivative(T[0])
+        velocity_and_w[1] = yinterpolator.derivative(T[0])
+        velocity_and_w[2] = zinterpolator.derivative(T[0])
+
+        precomputed_positions = np.empty((3,n))
+        precomputed_positions[0,:] = xinterpolator(T)
+        precomputed_positions[1,:] = yinterpolator(T)
+        precomputed_positions[2,:] = zinterpolator(T)
+
+        precomputed_velocities = np.empty((3,n))
+        precomputed_velocities[0,:] = xinterpolator.derivative(T)
+        precomputed_velocities[1,:] = yinterpolator.derivative(T)
+        precomputed_velocities[2,:] = zinterpolator.derivative(T)
+
         actual_positions = np.empty((3,n))
         actual_positions[:,0] = self.get_position()
 
-        last_position_error = np.zeros(3)
-        position_error_integral = np.zeros(3)
+        corrector_velocities = np.empty((3,n))
+        corrector_velocities[:,0] = np.zeros(3)
+        
+        proportional_velocities = np.empty((3,n))
+        proportional_velocities[:,0] = np.zeros(3)
+
+        integral_velocities = np.empty((3,n)) 
+        integral_velocities[:,0] = np.zeros(3)
+
+        derivative_velocities = np.empty((3,n))
+        derivative_velocities[:,0] = np.zeros(3)
+
+        vx_proportional, vy_proportional, vz_proportional = 0.0, 0.0, 0.0
+        last_vx_proportional, last_vy_proportional, last_vz_proportional = 0.0, 0.0, 0.0
+        vx_integral, vy_integral, vz_integral = 0.0, 0.0, 0.0
 
         for i in xrange(1,n):
             t_start = rospy.get_time()
@@ -117,25 +147,36 @@ class JointActionServer():
                     self.get_joint_velocities(velocity_and_w)))
 
             time_interval = T[i] - T[i-1]           
-
-            # get position 
+ 
             position = self.get_position()
-            position_error = precomputed_positions[:,i] - position
+            vx_proportional = precomputed_positions[0,i] - position[0]
+            vy_proportional = precomputed_positions[1,i] - position[1]
+            vz_proportional = precomputed_positions[2,i] - position[2]
+            proportional_velocities = self.kp * np.array([vx_proportional, vy_proportional, vz_proportional])
 
-            proportional_velocities = self.kp * tangential_position_error
+            vx_integral += vx_proportional * time_interval
+            vy_integral += vy_proportional * time_interval
+            vz_integral += vz_proportional * time_interval
+            integral_velocities = self.ki * np.array([vx_integral, vy_integral, vz_integral])
+
+            vx_derivative = (vx_proportional - last_vx_proportional)/time_interval
+            vy_derivative = (vy_proportional - last_vy_proportional)/time_interval
+            vz_derivative = (vz_proportional - last_vz_proportional)/time_interval
+            derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
             
-            position_error_integral += position_error * time_interval
-            integral_velocities = self.ki * tangential_position_error_integral
+            vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative 
+            vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative 
+            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative 
+            corrector_velocities[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
+           
+            velocity_and_w[0] = precomputed_velocities[0,i] + vx_corrector
+            velocity_and_w[1] = precomputed_velocities[1,i] + vy_corrector 
+            velocity_and_w[2] = precomputed_velocities[2,i] + vz_corrector
 
-            position_error_derivative = (position_error - last_position_error)/time_interval
-            derivative_velocities = self.kd * tangential_position_error_derivative            
+            last_vx_proportional = vx_proportional
+            last_vy_proportional = vy_proportional
+            last_vz_proportional = vz_proportional
 
-            last_tangential_position_error = tangential_position_error
-
-            error_velocities = proportional_velocities + integral_velocities + derivative_velocities
-
-            velocity_and_w[0:2] = precomputed_velocities[:,i] + position_error_velocities
-            
             actual_positions[:,i] = position
  
             end_time = time_interval + t_start
@@ -144,7 +185,8 @@ class JointActionServer():
 
         loginfo("exit_control_mode")
    
-        self.limb.exit_control_mode()     
+        self.limb.exit_control_mode()    
+             
   
         paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
         # date = ""
@@ -206,8 +248,10 @@ class JointActionServer():
             force_dict = self.limb.endpoint_effort()['force']
             force_vec = np.array([force_dict.x, force_dict.y, force_dict.z])
             normal_force = np.dot(force_vec, self.surface_normal)
+            loginfo("Recorded Normal Force: {0}".format(normal_force))
 
             force_error = self.desired_normal_force - normal_force
+            loginfo("Force Error: {0}".format(force_error))
             integral_of_force_error += force_error * time_interval
             derivative_of_force_error = (force_error - last_force_error)/time_interval
             last_force_error = force_error
@@ -282,7 +326,7 @@ class JointActionServer():
 
             return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , self.extra_motion_multiple*np.dot(b,b) + self.extra_motion_maximum)
 
-    def compute_position_velocities(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities): 
+    def compute_positions_velocities(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities): 
         xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
         yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
         zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
@@ -301,6 +345,7 @@ class JointActionServer():
         precomputed_velocities[2,:] = zinterpolator.derivative(T)
 
         return T, precomputed_positions, precomputed_velocities, n
+
     def make_joint_dict(self, joint_vector):
         joint_dict = {}
         for joint_attribute, joint_name in zip(joint_vector, self.joint_names):
