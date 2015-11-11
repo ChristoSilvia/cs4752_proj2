@@ -99,28 +99,11 @@ class JointActionServer():
 
     def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
         
-        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
-        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
-        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
-        
-        T = np.arange(0, times[-1], self.dt)
-        n = len(T)
+        T, precomputed_positions, precomputed_velocities, n = self.compute_positions_velocities(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
 
         velocity_and_w = np.zeros(6)
-        velocity_and_w[0] = xinterpolator.derivative(T[0])
-        velocity_and_w[1] = yinterpolator.derivative(T[0])
-        velocity_and_w[2] = zinterpolator.derivative(T[0])
-
-        precomputed_positions = np.empty((3,n))
-        precomputed_positions[0,:] = xinterpolator(T)
-        precomputed_positions[1,:] = yinterpolator(T)
-        precomputed_positions[2,:] = zinterpolator(T)
-
-        precomputed_velocities = np.empty((3,n))
-        precomputed_velocities[0,:] = xinterpolator.derivative(T)
-        precomputed_velocities[1,:] = yinterpolator.derivative(T)
-        precomputed_velocities[2,:] = zinterpolator.derivative(T)
-
+        velocity_and_w[0:3] = precomputed_velocities[:,0]
+        
         actual_positions = np.empty((3,n))
         actual_positions[:,0] = self.get_position()
 
@@ -179,27 +162,10 @@ class JointActionServer():
     
     def draw_on_plane(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
         
-        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
-        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
-        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
-        
-        T = np.arange(0, times[-1], self.dt)
-        n = len(T)
+        T, precomputed_positions, precomputed_velocities, n = self.compute_positions_velocities(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
 
         velocity_and_w = np.zeros(6)
-        velocity_and_w[0] = xinterpolator.derivative(T[0])
-        velocity_and_w[1] = yinterpolator.derivative(T[0])
-        velocity_and_w[2] = zinterpolator.derivative(T[0])
-
-        precomputed_positions = np.empty((3,n))
-        precomputed_positions[0,:] = xinterpolator(T)
-        precomputed_positions[1,:] = yinterpolator(T)
-        precomputed_positions[2,:] = zinterpolator(T)
-
-        precomputed_velocities = np.empty((3,n))
-        precomputed_velocities[0,:] = xinterpolator.derivative(T)
-        precomputed_velocities[1,:] = yinterpolator.derivative(T)
-        precomputed_velocities[2,:] = zinterpolator.derivative(T)
+        velocity_and_w[0:3] = precomputed_velocities[:,0]
 
         actual_positions = np.empty((3,n))
         actual_positions[:,0] = self.get_position()
@@ -316,6 +282,25 @@ class JointActionServer():
 
             return b + Jb * maximize_cosine_constrained(Jb, b , direction_of_manipulability , self.extra_motion_multiple*np.dot(b,b) + self.extra_motion_maximum)
 
+    def compute_position_velocities(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities): 
+        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
+        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
+        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
+        
+        T = np.arange(0, times[-1], self.dt)
+        n = len(T)
+
+        precomputed_positions = np.empty((3,n))
+        precomputed_positions[0,:] = xinterpolator(T)
+        precomputed_positions[1,:] = yinterpolator(T)
+        precomputed_positions[2,:] = zinterpolator(T)
+
+        precomputed_velocities = np.empty((3,n))
+        precomputed_velocities[0,:] = xinterpolator.derivative(T)
+        precomputed_velocities[1,:] = yinterpolator.derivative(T)
+        precomputed_velocities[2,:] = zinterpolator.derivative(T)
+
+        return T, precomputed_positions, precomputed_velocities, n
     def make_joint_dict(self, joint_vector):
         joint_dict = {}
         for joint_attribute, joint_name in zip(joint_vector, self.joint_names):
