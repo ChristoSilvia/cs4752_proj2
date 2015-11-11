@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import rospy
 from baxter_interface import CHECK_VERSION, RobotEnable, Limb
 
