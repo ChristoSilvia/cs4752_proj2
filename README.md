@@ -28,7 +28,7 @@ Extras:
 * Loads in an image
 * Uses a canny cv2 filter to extract edges
 * Creates paths from the edges and sends them to Baxter
-* 
+
 #### Force PID Controller (`joint_action_server.py`)
 
 * Keeps the pen in contact with the drawing plane
