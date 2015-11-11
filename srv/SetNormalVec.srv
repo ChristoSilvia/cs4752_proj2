@@ -1,3 +1,2 @@
 geometry_msgs/Vector3 normal_vec
-bool force_compensation
 ---

@@ -75,7 +75,6 @@ class JointActionServer():
 
     def set_normal_vec(self, args):
         self.surface_normal = np.array([args.normal_vec.x, args.normal_vec.y, args.normal_vec.z])
-        self.force_adjustments = args.force_compensation
         return SetNormalVecResponse()
 
     def parameter_response(self, args):
@@ -253,7 +252,7 @@ class JointActionServer():
             derivative_force_scalar = self.force_kd * derivative_of_force_error
             force_error_velocities = self.surface_normal * (position_force_scalar + integral_force_scalar + derivative_force_scalar)
             
-            velocity_and_w[0:2] = precomputed_velocities[:,i] + force_error_velocities + position_error_velocities
+            velocity_and_w[0:3] = precomputed_velocities[:,i] + force_error_velocities + position_error_velocities
             
             actual_positions[:,i] = position
  
