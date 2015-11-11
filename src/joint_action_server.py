@@ -64,6 +64,7 @@ class JointActionServer():
        
         self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec) 
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
+		self.draw_on_plane_service = createService('draw_on_plane', JointAction, self.move_draw_on_plane, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
         self.param_src = createService('set_parameters', SetParameters, self.parameter_response, limb_name)
         self.position_srv = createService('end_effector_position', EndEffectorPosition, self.get_position_response, limb_name)
@@ -90,7 +91,122 @@ class JointActionServer():
         loginfo("After move_trajectory")
         return JointActionResponse()
 
+    def move_draw_on_plane(self, args):
+        times, x_positions_velocities, y_positions_velocities, z_positions_velocities = self.unpack_joint_action_message(args)
+        loginfo("Unpacked desired events")
+        self.draw_on_plane(times, x_positions_velocities, y_positions_velocities, z_positions_velocities)
+        loginfo("After move_trajectory")
+        return JointActionResponse()
+
     def move_trajectory(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
+        
+        xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
+        yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
+        zinterpolator = PiecewisePolynomial(times, z_positions_velocities, orders=3, direction=1)
+        
+        T = np.arange(0, times[-1], self.dt)
+        n = len(T)
+
+        velocity_and_w = np.zeros(6)
+        velocity_and_w[0] = xinterpolator.derivative(T[0])
+        velocity_and_w[1] = yinterpolator.derivative(T[0])
+        velocity_and_w[2] = zinterpolator.derivative(T[0])
+
+        precomputed_positions = np.empty((3,n))
+        precomputed_positions[0,:] = xinterpolator(T)
+        precomputed_positions[1,:] = yinterpolator(T)
+        precomputed_positions[2,:] = zinterpolator(T)
+
+        precomputed_velocities = np.empty((3,n))
+        precomputed_velocities[0,:] = xinterpolator.derivative(T)
+        precomputed_velocities[1,:] = yinterpolator.derivative(T)
+        precomputed_velocities[2,:] = zinterpolator.derivative(T)
+
+        actual_positions = np.empty((3,n))
+        actual_positions[:,0] = self.get_position()
+
+        corrector_velocities = np.empty((3,n))
+        corrector_velocities[:,0] = np.zeros(3)
+        
+        proportional_velocities = np.empty((3,n))
+        proportional_velocities[:,0] = np.zeros(3)
+
+        integral_velocities = np.empty((3,n)) 
+        integral_velocities[:,0] = np.zeros(3)
+
+        derivative_velocities = np.empty((3,n))
+        derivative_velocities[:,0] = np.zeros(3)
+
+        last_position_error = np.zeros(3)
+        position_error_integral = np.zeros(3)
+
+        for i in xrange(1,n):
+            t_start = rospy.get_time()
+            self.limb.set_joint_velocities(
+                self.make_joint_dict(
+                    self.get_joint_velocities(velocity_and_w)))
+
+            time_interval = T[i] - T[i-1]           
+
+            # get position 
+            position = self.get_position()
+            position_error = precomputed_positions[:,i] - position
+
+            proportional_velocities = self.kp * tangential_position_error
+            
+            position_error_integral += position_error * time_interval
+            integral_velocities = self.ki * tangential_position_error_integral
+
+            position_error_derivative = (position_error - last_position_error)/time_interval
+            derivative_velocities = self.kd * tangential_position_error_derivative            
+
+            last_tangential_position_error = tangential_position_error
+
+            error_velocities = proportional_velocities + integral_velocities + derivative_velocities
+
+            velocity_and_w[0:2] = precomputed_velocities[:,i] + position_error_velocities
+            
+            actual_positions[:,i] = position
+ 
+            end_time = time_interval + t_start
+            loginfo("Computation Took: {0} out of {1} seconds".format(rospy.get_time() - t_start, time_interval))
+            rospy.sleep(end_time - rospy.get_time())
+
+        loginfo("exit_control_mode")
+   
+        self.limb.exit_control_mode()     
+  
+        paramtext = "%1.4f_%1.4f_%1.4f_%1.4f_%1.4f" % (self.kp, self.ki, self.kd, self.extra_motion_maximum, self.extra_motion_multiple)
+        # date = ""
+        date = str(datetime.now())
+        folder = "tests"
+        A = np.empty((n,4))
+        A[:,0] = T
+        A[:,1:] = actual_positions.T
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}actual-positions-{0}.csv".format(paramtext,date,folder),A)
+        B = np.empty((n,4))
+        B[:,0] = T
+        B[:,1:] = precomputed_positions.T
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
+        C = np.empty((n,4))
+        C[:,0] = T
+        C[:,1:] = corrector_velocities.T
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),C)
+        D = np.empty((n,4))
+        D[:,0] = T
+        D[:,1:] = proportional_velocities.T
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),D)
+        E = np.empty((n,4))
+        E[:,0] = T
+        E[:,1:] = integral_velocities.T
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}vcorrector-velocities-{0}.csv".format(paramtext,date,folder),E)
+        F = np.empty((n,4))
+        F[:,0] = T
+        F[:,1:] = derivative_velocities.T
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}corrector-velocities-{0}.csv".format(paramtext,date,folder),F)
+        loginfo("saved errors")
+    
+	def draw_on_plane(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
         
         xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
         yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
