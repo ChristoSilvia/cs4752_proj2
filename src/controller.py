@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import rospy
 import numpy as np
 from scipy.spatial import KDTree
@@ -68,24 +69,24 @@ class controller() :
 
         rospy.spin()
 
-    def sendTransform(self):
-        self.transform_setup()        
+    # def sendTransform(self):
+    #     self.transform_setup()        
 
-        t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
-        t.header.frame_id = "base"
-        t.child_frame_id = "plane_frame"
-        T = translation_from_matrix(self.plane_translation)
-        t.transform.translation.x = T[0]
-        t.transform.translation.y = T[1]
-        t.transform.translation.z = T[2]
-        q = quaternion_from_matrix(self.plane_rotation)
-        t.transform.rotation.x = q[0]
-        t.transform.rotation.y = q[1]
-        t.transform.rotation.z = q[2]
-        t.transform.rotation.w = q[3]
+    #     t = TransformStamped()
+    #     t.header.stamp = rospy.Time.now()
+    #     t.header.frame_id = "base"
+    #     t.child_frame_id = "plane_frame"
+    #     T = translation_from_matrix(self.plane_translation)
+    #     t.transform.translation.x = T[0]
+    #     t.transform.translation.y = T[1]
+    #     t.transform.translation.z = T[2]
+    #     q = quaternion_from_matrix(self.plane_rotation)
+    #     t.transform.rotation.x = q[0]
+    #     t.transform.rotation.y = q[1]
+    #     t.transform.rotation.z = q[2]
+    #     t.transform.rotation.w = q[3]
 
-        self.tf_br.sendTransform(t)
+    #     self.tf_br.sendTransform(t)
 
     def calibrate_plane(self):
         point_count = 0
@@ -106,10 +107,6 @@ class controller() :
         self.set_plane_normal_srv(Vector3(self.plane_norm[0], self.plane_norm[1], self.plane_norm[2]))
         # plane_origin = np.average(point_pos, axis=0)
         plane_origin = point_pos[0]
-
-        # make sure normal is pointing towards the base
-        # if(np.dot(-plane_origin,self.plane_norm) < 0):
-        #     self.plane_norm *= -1.
 
         self.plane_translation = translation_matrix(plane_origin)
         

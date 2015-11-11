@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import numpy as np
 import rospy
 from cs4752_proj2.srv import *

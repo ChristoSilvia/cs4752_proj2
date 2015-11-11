@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import numpy as np
 from scipy.interpolate import PiecewisePolynomial
 

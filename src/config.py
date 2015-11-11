@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import rospy
 
 CLOSE_GRIPPER = 0

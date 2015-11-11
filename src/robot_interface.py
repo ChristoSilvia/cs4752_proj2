@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import rospy
 import numpy as np
 from std_msgs.msg import *
@@ -27,9 +28,6 @@ class RobotInterface():
         self.gripper_left = Gripper('left')
         self.gripper_right = Gripper('right')
 
-        # self.initial_left = Pose()
-        # self.initial_right = Pose()
-
         rospy.Subscriber("/robot/limb/left/endpoint_state", EndpointState, self.respondToEndpointLeft)
         rospy.Subscriber("/robot/limb/right/endpoint_state", EndpointState, self.respondToEndpointRight)
         
@@ -50,14 +48,6 @@ class RobotInterface():
         print "Ready to move robot."
 
         rospy.spin()
-
-    # def HomePose(self) :
-    #     rospy.loginfo("Going to Home Pose")
-    #     homepose = Pose()
-    #     homepose.position = Point(0.572578886689,0.181184911298,0.146191403844)
-    #     homepose.orientation = Quaternion(0.140770659119,0.989645234506,0.0116543447684,0.0254972076605)
-    #     success = MoveToPose(homepose, False, False, False)
-    #     rospy.loginfo("Got to Home Pose : %r", success)
 
     def respondToEndpointLeft(self, EndpointState) :
         self.hand_pose_left = deepcopy(EndpointState.pose)
@@ -103,27 +93,16 @@ class RobotInterface():
                 try:
                     self.initial_left
                     new_pose = deepcopy(self.initial_left)
-                    print "888888888888888888888888888888888888888888888888"
-                    print "Using the init left"
                 except AttributeError:
                     new_pose = deepcopy(self.hand_pose_left)
                     self.initial_left = deepcopy(self.hand_pose_left)
-                    print "888888888888888888888888888888888888888888888888"
-                    print "setting the init left"
             elif req.limb == 'right':
                 try:
                     self.initial_right
                     new_pose = deepcopy(self.initial_right)
-                    print "888888888888888888888888888888888888888888888888"
-                    print "Using the init right"
                 except AttributeError:
                     new_pose = deepcopy(self.hand_pose_right)
                     self.initial_right = deepcopy(self.hand_pose_right)
-                    print "888888888888888888888888888888888888888888888888"
-                    print "setting the init right"
-
-            print new_pose.orientation
-            print "888888888888888888888888888888888888888888888888"
 
             new_pose.position = deepcopy(req.pose.position)
             # success = self.MoveToPose(req.limb, new_pose, "FAILED MoveToPose")

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import rospy
 import scipy as sp
 from scipy.integrate import quad
@@ -92,21 +93,14 @@ def draw_cubic_bezier(p0,p1,p2,p3):
 	if num_points < min_pts: num_points = min_pts
 	T_max = 1.0
 	t = sp.linspace(0,1,num_points)
-	# Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
-	# Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
-	Tau = t
-	Tauprime = 1
 
 	#Use the Cubic Bezier formula
 
 	# add the position (Bx,By)
-	Bx, By, Bz = bezier_cubic(p0, p1, p2, p3, Tau)
+	Bx, By, Bz = bezier_cubic(p0, p1, p2, p3, t)
 
 	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy, Bdz = bezier_cubic_dt(p0, p1, p2, p3, Tau)
-	Bdx *= Tauprime
-	Bdy *= Tauprime
-	Bdz *= Tauprime
+	Bdx, Bdy, Bdz = bezier_cubic_dt(p0, p1, p2, p3, t)
 
 	dxi, dyi, dzi = bezier_cubic_dt(p0, p1, p2, p3, t0)
 	dxf, dyf, dzf = bezier_cubic_dt(p0, p1, p2, p3, t1)
@@ -160,21 +154,14 @@ def draw_quadratic_bezier(p0,p1,p3):
 	if num_points < min_pts: num_points = min_pts
 	t = sp.linspace(0,1,num_points)
 	T_max = 1.0
-	# Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
-	# Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
-	Tau = t
-	Tauprime = 1
 
 	#Use the Quadratic Bezier formula
 
 	# add the position (Bx,By)
-	Bx, By, Bz = bezier_quadratic(p0, p1, p3, Tau)
+	Bx, By, Bz = bezier_quadratic(p0, p1, p3, t)
 
 	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy, Bdz = bezier_quadratic_dt(p0, p1, p3, Tau)
-	Bdx *= Tauprime
-	Bdy *= Tauprime
-	Bdz *= Tauprime
+	Bdx, Bdy, Bdz = bezier_quadratic_dt(p0, p1, p3, t)
 
 	dxi, dyi, dzi = bezier_quadratic_dt(p0, p1, p3, t0)
 	dxf, dyf, dzf = bezier_quadratic_dt(p0, p1, p3, t1)
@@ -227,20 +214,14 @@ def draw_line(p0,p3,plot=True):
 	if num_points < min_pts: num_points = min_pts
 	t = sp.linspace(0,1,num_points)
 	T_max = 1.0
-	# Tau = (t/T_max)**2 * (4.0 - 4.0*(t/T_max) + (t/T_max)**2)
-	# Tauprime = 2*(t/(T_max**2))*(4.0 - 4.0*(t/T_max) + (t/T_max)**2) + (t/T_max)**2 * (-4.0/T_max + 2.0*(t/(T_max**2)))
-	Tau = t
-	Tauprime = 1
+
 	#Use the Linear  formula
 
 	# add the position (Bx,By)
-	Bx, By, Bz = linear(p0, p3, Tau)
+	Bx, By, Bz = linear(p0, p3, t)
 
 	# add the velocity (Bdx,Bdy)
-	Bdx, Bdy, Bdz = linear_dt(p0, p3, Tau)
-	Bdx *= Tauprime
-	Bdy *= Tauprime
-	Bdz *= Tauprime
+	Bdx, Bdy, Bdz = linear_dt(p0, p3, t)
 
 	dxi, dyi, dzi = linear_dt(p0, p3, t0)
 	dxf, dyf, dzf = linear_dt(p0, p3, t1)
@@ -284,22 +265,6 @@ def draw_line(p0,p3,plot=True):
 
 def move_pen(p0,p3):
 	global z_offset, curr_pos
-
-	# z_offset_unit = z_offset/meters_per_unit
-	
-	# p1 = deepcopy(p0)
-	# p1[2] = z_offset_unit
-	# p2 = deepcopy(p3)
-	# p2[2] = z_offset_unit
-
-	# p4 = deepcopy(p3)
-	# p4[2] = -z_offset_unit/2.
-
-	# draw_line(p0,p1,plot=False)
-	# curr_pos = p1
-	# draw_line(p1,p2,plot=False)
-	# curr_pos = p2
-	# draw_line(p2,p4,plot=False)
 
 	curr_pos = p3
 
@@ -352,11 +317,6 @@ def pathCb(path):
 		p0 = curr_pos
 		p3 = [path.x,path.y,0]
 
-		print "#####################################"
-		print "move pen to"
-		print p3
-		print "#####################################"
-
 		move_pen(p0,p3)
 
 		send_plane_traj()
@@ -365,12 +325,6 @@ def pathCb(path):
 		# close path
 		p0 = curr_pos
 
-		# p1 = deepcopy(p0)
-		# z_offset_unit = .05/meters_per_unit
-		# p1[2] = z_offset_unit
-		# draw_line(p0,p1,plot=False)
-		# curr_pos = p1
-		
 		send_plane_traj()
 
 	#Add those to the axes
