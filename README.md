@@ -10,6 +10,8 @@ Extras:
 * Bi-directional RRT
 * Splines
 
+---
+The package contains the following modules of note:
 
 #### Typewriter (`typewriter.py`)
 
