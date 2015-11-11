@@ -37,7 +37,7 @@ class JointActionServer():
         self.secondary_objective = True
 
         # secondary objective parameters
-        self.extra_motion_maximum = 0.00
+        self.extra_motion_maximum = 0.00001
         self.extra_motion_multiple = 1.1
         
         # free-movement PID parameters
@@ -65,7 +65,7 @@ class JointActionServer():
 
         self.force_adjustments = False
         self.force_threshold = 0.05
-		self.force_induced_velocity = -0.01
+        self.force_induced_velocity = -0.01
         
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
@@ -156,7 +156,7 @@ class JointActionServer():
             vz_derivative = (vz_proportional - last_vz_proportional)/time_interval
             derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
             
-			force_offset = 0.0 if np.abs(self.limb.endpoint_effort()['force'].z) < self.force_threshold and self.force_adjustments else self.force_induced_velocity
+            force_offset = 0.0 if np.abs(self.limb.endpoint_effort()['force'].z) < self.force_threshold and self.force_adjustments else self.force_induced_velocity
 
             vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative
             vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative

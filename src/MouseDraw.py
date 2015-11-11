@@ -116,6 +116,7 @@ def IterateImage(img) :
 def draw_image(image_name, detail) :
 	image = misc.imread(image_name)
 	image = cv2.Canny(image,detail,detail)	
+	imshow()
 	paths = IterateImage(image)
 	print paths
 	return paths
