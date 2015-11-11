@@ -62,7 +62,10 @@ class JointActionServer():
         self.kp_normal = 0.01
         self.ki_normal = 0.01
         self.kd_normal = 0.0
-        
+
+        self.force_adjustments = False
+        self.force_threshold = 0.05
+		self.force_induced_velocity = 0.01
         
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
@@ -152,10 +155,12 @@ class JointActionServer():
             vy_derivative = (vy_proportional - last_vy_proportional)/time_interval
             vz_derivative = (vz_proportional - last_vz_proportional)/time_interval
             derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
+            
+			force_offset = 0.0 if np.abs(self.limb.endpoint_effort()['force'].z) < self.force_threshold and self.force_adjustments else self.force_induced_velocity
 
             vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative
             vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative
-            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative
+            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative + force_offset
             corrector_velocities[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
            
             velocity_and_w[0] = precomputed_velocities[0,i] + vx_corrector
