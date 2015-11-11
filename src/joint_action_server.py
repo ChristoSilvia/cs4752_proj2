@@ -67,6 +67,9 @@ class JointActionServer():
         self.force_min_threshold = 1.0
         self.force_max_threshold = 2.0
         self.force_induced_velocity = -0.005
+        # linear force response
+        self.force_linear_equlibrium = 1.8
+        self.force_slope = 0.025
         
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
@@ -158,17 +161,15 @@ class JointActionServer():
             derivative_velocities = self.kd * np.array([vx_derivative, vy_derivative, vz_derivative])
             
             loginfo(self.limb.endpoint_effort()['force'].z)
-            force = np.abs(self.limb.endpoint_effort()['force'].z)
-            if force > self.force_max_threshold:
-                force_offset = -self.force_induced_velocity
-            elif force > self.force_min_threshold:
-                force_offset = 0.0
-            else:
-                force_offset = self.force_induced_velocity
+            force_dict = self.limb.endpoint_effort()['force']
+            force_vec = np.array([force_dict.x, force_dict.y, force_dict.z])
+            normal_force = np.dot(force_vec, self.surface_normal())
+            if self.force_adjustments:
+                force_offset_velocity = self.force_slope * (force - self.force_linear_equlibrium)
 
-            vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative
-            vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative
-            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative + force_offset
+            vx_corrector = self.kp * vx_proportional + self.ki * vx_integral + self.kd * vx_derivative + force_offset_velocity * surface_normal[0]
+            vy_corrector = self.kp * vy_proportional + self.ki * vy_integral + self.kd * vy_derivative + force_offset_velocity * surface_normal[1]
+            vz_corrector = self.kp * vz_proportional + self.ki * vz_integral + self.kd * vz_derivative + force_offset_velocity * surface_normal[2]
             corrector_velocities[:,i] = np.array([vx_corrector, vy_corrector, vz_corrector])
            
             velocity_and_w[0] = precomputed_velocities[0,i] + vx_corrector
