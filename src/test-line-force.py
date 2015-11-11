@@ -33,7 +33,7 @@ def test():
     global move_robot
     move_robot = createServiceProxy("move_robot",MoveRobot,"")
     move_end_effector = createServiceProxy("move_end_effector_trajectory",JointAction,limb)
-	draw_end_effector = createServiceProxy('draw_on_plane',JointAction,limb)
+    draw_end_effector = createServiceProxy('draw_on_plane',JointAction,limb)
     position_server = createServiceProxy("end_effector_position",EndEffectorPosition,limb)
     parameter_server = createServiceProxy("set_parameters",SetParameters,limb)
 

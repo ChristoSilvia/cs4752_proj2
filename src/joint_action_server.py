@@ -62,9 +62,9 @@ class JointActionServer():
         self.force_adjustments = True
         self.desired_normal_force = 1.8
        
-        self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec) 
+        self.set_normal_vec = createService('set_normal_vec', SetNormalVec, self.set_normal_vec, limb_name) 
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
-		self.draw_on_plane_service = createService('draw_on_plane', JointAction, self.move_draw_on_plane, limb_name)
+        self.draw_on_plane_service = createService('draw_on_plane', JointAction, self.move_draw_on_plane, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
         self.param_src = createService('set_parameters', SetParameters, self.parameter_response, limb_name)
         self.position_srv = createService('end_effector_position', EndEffectorPosition, self.get_position_response, limb_name)
@@ -178,7 +178,7 @@ class JointActionServer():
         # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}precomputed-positions-{0}.csv".format(paramtext,date,folder),B)
         loginfo("saved errors")
     
-	def draw_on_plane(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
+    def draw_on_plane(self, times, x_positions_velocities, y_positions_velocities, z_positions_velocities):
         
         xinterpolator = PiecewisePolynomial(times, x_positions_velocities, orders=3, direction=1)
         yinterpolator = PiecewisePolynomial(times, y_positions_velocities, orders=3, direction=1)
