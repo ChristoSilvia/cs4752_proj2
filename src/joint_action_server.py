@@ -81,7 +81,7 @@ class JointActionServer():
 
     def set_normal_vec(self, args):
         self.surface_normal = np.array([args.normal_vec.x, args.normal_vec.y, args.normal_vec.z])
-        self.on_whiteboard = args.force_compensation
+        self.force_adjustments = args.force_compensation
         return SetNormalVecResponse()
 
     def parameter_response(self, args):
