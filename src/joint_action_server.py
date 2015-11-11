@@ -163,7 +163,8 @@ class JointActionServer():
             loginfo(self.limb.endpoint_effort()['force'].z)
             force_dict = self.limb.endpoint_effort()['force']
             force_vec = np.array([force_dict.x, force_dict.y, force_dict.z])
-            normal_force = np.dot(force_vec, self.surface_normal())
+            normal_force = np.dot(force_vec, self.surface_normal)
+
             if self.force_adjustments:
                 force_offset_velocity = self.force_slope * (force - self.force_linear_equlibrium)
 
