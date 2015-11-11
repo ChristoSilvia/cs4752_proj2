@@ -115,7 +115,10 @@ def IterateImage(img) :
 	return paths
 
 def draw_image(image_name, detail) :
-	image = misc.imread(image_name)
+	try:
+		image = misc.imread(image_name)
+	except Exception:
+		return
 	(rows,cols,channels) = image.shape
 	image = cv2.Canny(image,detail,detail)
 	
@@ -190,9 +193,9 @@ class MouseDraw() :
 
 
 		filename = askopenfilename(initialdir="~/ros_ws/src/cs4752_proj2/img/") 
-		image_path = draw_image(filename, 150)
-		print len(image_path)
-		self.sendImagePath(image_path)
+		# image_path = draw_image(filename, 150)
+		# print len(image_path)
+		# self.sendImagePath(image_path)
 
 		print "drawing on canvas"
 		
