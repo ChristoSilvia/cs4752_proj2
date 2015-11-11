@@ -115,7 +115,9 @@ class RobotInterface():
         if inter3 :
             interpose2 = self.getOffsetPose(new_pose, .01)
             b3 = self.MoveToPose(limb, interpose2, "MoveToRightAbovePose")
-        return self.MoveToPose(limb, new_pose, "MoveToPose")
+        
+        b4 = self.MoveToPose(limb, new_pose, "MoveToPose")
+        return b4
 
     def MoveToPose(self, limb, pose, name) :
         joint_solution = self.inverse_kinematics(limb, pose)
