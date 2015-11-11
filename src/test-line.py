@@ -63,7 +63,7 @@ def test():
     # K_i = 0.0
     # K_d = 0.0
 
-    guess_params = np.array([K_p, K_i, K_d, 0.00, 1.1])
+    guess_params = np.array([K_p, K_i, K_d, 0.00001, 1.1])
     evaluate_parameters(guess_params)
     # sweet_params = minimize(evaluate_parameters, 
     #                        np.array([0.01, 0.01, 0.0001, 0.05, 2.0]),

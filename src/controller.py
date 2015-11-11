@@ -29,12 +29,11 @@ class controller() :
         loginfo("Initialized node Controller")
 
         rospy.Subscriber("/plane_traj", Trajectory, self.plane_trajCb, queue_size=10000)
-        # rospy.Subscriber("/plane_pose", Pose, self.plane_poseCb, queue_size=20)
+        self.move_plane_traj_srv = createService('move_plane_traj', JointAction, self.handle_move_plane_traj, "left")
         
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
-        rospy.wait_for_service("/move_robot") #ADDED THIS HERE
+        
         self.move_robot = createServiceProxy("move_robot", MoveRobot, "")
-
         self.move_robot_plane_service = createService('move_robot_plane', MoveRobot, self.handle_move_robot_plane, "")
 
 
@@ -206,6 +205,14 @@ class controller() :
 
     def vector3_to_np(self,v):
         return np.array([v.x,v.y,v.z])
+
+    def handle_move_plane_traj(self, req):
+        msg = Trajectory()
+        msg.times = req.times
+        msg.positions = req.positions
+        msg.velocities = req.velocities
+        self.plane_trajCb(msg)
+        return JointActionResponse()
 
     def plane_trajCb(self, plane_traj_msg):
         self.got_plane_traj = True

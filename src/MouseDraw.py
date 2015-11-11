@@ -115,16 +115,19 @@ def IterateImage(img) :
 
 def draw_image(image_name, detail) :
 	image = misc.imread(image_name)
-	rows,cols = image.shape
-	img_width = 300
+	(rows,cols,channels) = image.shape
+	image = cv2.Canny(image,detail,detail)
+	
+	# img_width = int(.3/self.scale)
+	# img_width = 500
+	# image = cv2.resize(image,(img_width,rows*img_width/cols))
+	# M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
+	# image = cv2.warpAffine(image,M,(cols*img_width/rows,img_width))
 
-
-	M = cv2.getRotationMatrix2D((cols/2,rows/2),-90,1)
-
-	image = cv2.warpAffine(img,M,(cols*img_width/rows,img_width))
-
-
-	image = cv2.Canny(image,detail,detail)	
+	# plt.imshow(image)
+	# # plt.imshow(image2)
+	# plt.hold()
+	# plt.show()
 
 	paths = IterateImage(image)
 	print paths
@@ -137,12 +140,13 @@ class MouseDraw() :
 
 
 		self.plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
+		self.plane_traj_srv = createServiceProxy('move_plane_traj', JointAction, "left")
 
 		#rospy.wait_for_service('/')
 
 		rospy.wait_for_service("/move_robot_plane")
 		self.move_robot_plane = rospy.ServiceProxy("/move_robot_plane", MoveRobot)
-		
+
 		loginfo("Initialized service proxy for /move_robot")
 
 		#constants
@@ -235,8 +239,9 @@ class MouseDraw() :
 				i += 1
 			self.canvas.update()
 
-			self.plane_traj_pub.publish(traject)
-			rospy.sleep(sumtime)
+			# self.plane_traj_pub.publish(traject)
+			# rospy.sleep(sumtime)
+			self.plane_traj_srv(traject.times,traject.positions,traject.velocities)
 
 
 

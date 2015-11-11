@@ -431,7 +431,9 @@ def send_plane_traj():
 		# print "len(velocities): %d" % len(plane_traj_msg.velocities)
 		# print "duration: %f" % plane_traj_msg.times[len(plane_traj_msg.times)-1]
 		# print "###################################################"
-		plane_traj_pub.publish(plane_traj_msg)
+
+		# plane_traj_pub.publish(plane_traj_msg)
+		plane_traj_srv(plane_traj_msg.times,plane_traj_msg.positions,plane_traj_msg.velocities)
 
 	plane_traj_msg = Trajectory()
 
@@ -439,16 +441,16 @@ def bezier():
 	rospy.init_node("bezier")
 	loginfo("Initialized node Bezier")
 
-	global fig, ax, plane_traj_pub, move_robot_plane
+	global fig, ax, plane_traj_pub, move_robot_plane, plane_traj_srv
 	
 	#Generate the figure
 	fig = plt.figure()
 	ax = fig.add_subplot(111)
 	ax.hold(True)
 
-	rospy.Subscriber("/cmd_path", Path, pathCb, queue_size=10000)	
+	rospy.Subscriber("/cmd_path", Path, pathCb, queue_size=10000)
 	plane_traj_pub = rospy.Publisher('/plane_traj', Trajectory, queue_size=10)
-	move_robot_plane = createServiceProxy("move_robot_plane", MoveRobot, "")
+	plane_traj_srv = createServiceProxy('move_plane_traj', JointAction, "left")
 
 	plt.show()
 	# rospy.spin()

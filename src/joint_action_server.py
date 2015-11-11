@@ -188,7 +188,7 @@ class JointActionServer():
         A = np.empty((n,4))
         A[:,0] = T
         A[:,1:] = actual_positions.T
-        np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}actual-positions-{0}.csv".format(paramtext,date,folder),A)
+        # np.savetxt("/home/cs4752/ros_ws/src/cs4752_proj2/{2}/{1}actual-positions-{0}.csv".format(paramtext,date,folder),A)
         B = np.empty((n,4))
         B[:,0] = T
         B[:,1:] = precomputed_positions.T
