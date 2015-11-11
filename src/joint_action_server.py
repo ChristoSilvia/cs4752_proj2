@@ -69,8 +69,6 @@ class JointActionServer():
         self.param_src = createService('set_parameters', SetParameters, self.parameter_response, limb_name)
         self.position_srv = createService('end_effector_position', EndEffectorPosition, self.get_position_response, limb_name)
         
-        self.get_plane_normal_srv = createService('get_plane_normal', EndEffectorPosition, self.get_plane_normal, "")
-
         rospy.spin()
 
     def set_normal_vec(self, args):
