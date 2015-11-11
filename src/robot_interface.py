@@ -106,17 +106,20 @@ class RobotInterface():
         hand_pose = self.hand_pose_left if limb == 'left' else self.hand_pose_right
         new_pose = deepcopy(hand_pose)
         new_pose.position = pose.position
-        if inter1 :
-            interpose1 = self.getOffsetPose(hand_pose, .05)
-            b1 = self.MoveToPose(limb, interpose1, "MoveToIntermediatePose")
-        if inter2 :
-            interpose2 = self.getOffsetPose(new_pose, .05)
-            b2 = self.MoveToPose(limb, interpose2, "MoveToIntermediatePose")
-        if inter3 :
-            interpose2 = self.getOffsetPose(new_pose, .01)
-            b3 = self.MoveToPose(limb, interpose2, "MoveToRightAbovePose")
+        # if inter1 :
+        #     interpose1 = self.getOffsetPose(hand_pose, .05)
+        #     b1 = self.MoveToPose(limb, interpose1, "MoveToIntermediatePose")
+        # if inter2 :
+        #     interpose2 = self.getOffsetPose(new_pose, .05)
+        #     b2 = self.MoveToPose(limb, interpose2, "MoveToIntermediatePose")
+        # if inter3 :
+        #     interpose2 = self.getOffsetPose(new_pose, .01)
+        #     b3 = self.MoveToPose(limb, interpose2, "MoveToRightAbovePose")
         
         b4 = self.MoveToPose(limb, new_pose, "MoveToPose")
+        # print "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^6"
+        # print new_pose
+        # print "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^6"
         return b4
 
     def MoveToPose(self, limb, pose, name) :

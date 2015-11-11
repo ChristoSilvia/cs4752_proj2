@@ -248,7 +248,7 @@ class controller() :
         self.fig.canvas.draw()
 
 
-        # self.joint_action_server(plane_traj_msg.times, positions, velocities) 
+        self.joint_action_server(plane_traj_msg.times, positions, velocities) 
 
 
 if __name__ == '__main__':

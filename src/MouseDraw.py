@@ -60,12 +60,13 @@ def DeletePerps(img, r, c, dire, stride) :
 
 #returns the straightest path available by a greedy approach
 #subtracts the pixels taken in the path from the image
-def FindPathFrom(img, r, c, canvas) :
+def FindPathFrom(img, r, c) :
 	path = []
 	path.append((r,c))
 	img[r,c] = 0
 	direction = 0
 	PathFound = True
+	delete_stride = 3
 	while (PathFound) :
 		difference = 0
 		PathFound = False
@@ -81,8 +82,8 @@ def FindPathFrom(img, r, c, canvas) :
 					img[r,c] = 0
 					direction = lower
 					PathFound = True
-					canvas.create_rectangle(r+2, c+2, r, c, outline="#fb0", fill="#fb0")
-					img = DeletePerps(img, r,c,direction,2)
+					#canvas.create_rectangle(r+2, c+2, r, c, outline="#fb0", fill="#fb0")
+					img = DeletePerps(img, r,c,direction,delete_stride)
 					break
 
 			(ur, uc) = DirToSlope(upper)
@@ -93,8 +94,8 @@ def FindPathFrom(img, r, c, canvas) :
 				path.append((r,c))
 				direction = upper
 				PathFound = True
-				canvas.create_rectangle(r+2, c+2, r, c, outline="#fb0", fill="#fb0")
-				img = DeletePerps(img, r,c,direction,2)
+				
+				img = DeletePerps(img, r,c,direction, delete_stride)
 				break
 
 			difference = difference + 1
@@ -102,20 +103,20 @@ def FindPathFrom(img, r, c, canvas) :
 		return img, path
 	return img, []
 
-def IterateImage(img, canvas) :
+def IterateImage(img) :
 	paths = []
 	for r in xrange(0, img.shape[0]) :
 		for c in xrange(0, img.shape[1]) :
 			if img[r,c] > 0 :
-				img, path = FindPathFrom(img, r, c, canvas)
+				img, path = FindPathFrom(img, r, c)
 				if path :
 					paths.append(path)
 	return paths
 
-def draw_image(image_name, detail, canvas) :
+def draw_image(image_name, detail) :
 	image = misc.imread(image_name)
 	image = cv2.Canny(image,detail,detail)	
-	paths = IterateImage(image, canvas)
+	paths = IterateImage(image)
 	print paths
 	return paths
 
@@ -138,7 +139,7 @@ class MouseDraw() :
 		self.limb = 'left'
 		self.listLimit = 20
 		self.velocityFilterLength = 10
-		self.scale = .0007
+		self.scale = .0007 #in meters/pixel
 		self.speed = .03 #in meters/second
 		self.ZDelta = .04
 		self.TrajectoryUpdateWait = .02
@@ -174,8 +175,8 @@ class MouseDraw() :
 		self.canvas.bind('c', self.Clear)
 
 
-		filename = askopenfilename() 
-		image_path = draw_image(filename, 150, self.canvas)
+		filename = askopenfilename(initialdir="~/ros_ws/src/cs4752_proj2/") 
+		image_path = draw_image(filename, 150)
 		print len(image_path)
 		self.sendImagePath(image_path)
 
@@ -204,6 +205,8 @@ class MouseDraw() :
 			sumtime = 0
 			for pixels in path :
 				if i % 5 == 0 :
+					self.canvas.create_rectangle(pixels[0], pixels[1], pixels[0]+2, pixels[1]+2, outline="#fb0", fill="#fb0")
+					
 					new_p = Vector3(pixels[0] *self.scale, pixels[1] *self.scale, self.zDist)
 					new_v = Vector3(0,0,0)
 					new_t = 0
@@ -211,15 +214,16 @@ class MouseDraw() :
 						dx = new_p.x - oldpos.x
 						dy = new_p.y - oldpos.y
 						dz = new_p.z - oldpos.z
-						dist = (dx**2+dy**2+dz**2)**5
+						dist = (dx**2+dy**2+dz**2)**.5
 						new_v = Vector3((dx)/dist*self.speed, (dy)/dist*self.speed, dz/dist*self.speed)
-						new_t = dist/self.speed
+						new_t = traject.times[len(traject.times)-1] + dist/self.speed
 					sumtime += new_t
 					traject.positions.append(new_p)
 					traject.velocities.append(new_v)
 					traject.times.append(new_t)
 					oldpos = new_p
 				i += 1
+			self.canvas.update()
 
 			self.plane_traj_pub.publish(traject)
 			rospy.sleep(sumtime)

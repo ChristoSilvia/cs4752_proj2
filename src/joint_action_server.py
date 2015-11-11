@@ -215,6 +215,7 @@ class JointActionServer():
         Jplus = np.linalg.pinv(J)
 
         b = np.dot(Jplus, workspace_velocity_and_w)
+        loginfo("Joint Velocity Vector Magnitude: {0}".format(np.linalg.norm(b)))
 
         if not self.secondary_objective:
             return b
