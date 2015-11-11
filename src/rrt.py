@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Team: zic; Names: Zach Vinegar, Isaac Qureshi, Chris Silvia
 import numpy as np
 #from scipy.spatial import KDTree
 #from scipy.spatial import distance
@@ -44,21 +45,22 @@ def sample_cspace():
 
 def sample_2d() :
 	r = np.zeros(2)
-	r[0] = np.random.rand(1)*5
-	r[1] = np.random.rand(1)*5
+	r[0] = np.random.rand(1)*20
+	r[1] = np.random.rand(1)*20
 	return r
 
-def Collision_Test2D(x,y) :
-	return (x < 3 or x >4) and (y < 3 or y >4)
+def Collision_Test2D(p) :
+	return p[0] > 6 and p[0] <14 and p[1] > 5 and p[1] < 15
 
 class Buffered_KD_Tree :
-	def __init__(self, qinit, k) :
+	def __init__(self, qinit, k, dimension) :
 		self.buffer=[qinit]
 		self.buffer_count = 1
 		self.buffer_size = k
 
 		self.kdtree_data = None
 		self.kdtree = None
+		self.dimension = dimension
 		#self.kdtree_data[:] = qinit
 		#self.kdtree = KDTree(self.kdtree_data)
 
@@ -98,10 +100,13 @@ class Buffered_KD_Tree :
 		closest_point = None
 		for point in self.buffer :
 			#this_dist = np.distance(point, p)
-			this_dist = scipy.spatial.distance.euclidean(point,p)
+			if self.dimension != 2 :
+				this_dist = scipy.spatial.distance.euclidean(point,p)
+			else :
+				this_dist = ((point[0]-p[0])**2 + (point[1]-p[1])**2)**.5
 			if this_dist < closest_dist :
-				closest_buffer_dist = this_dist
-				closest_point = point
+					closest_buffer_dist = this_dist
+					closest_point = point
 
 		if self.kdtree != None :
 			
@@ -138,6 +143,7 @@ def path_from(path, node) :
 
 
 def PointLerp(p1, p2, delta) :
+
 	dist = np.linalg.norm(p2 - p1)
 	if dist <= delta :
 		return p2
@@ -146,47 +152,75 @@ def PointLerp(p1, p2, delta) :
 def loginfo(message):
     rospy.loginfo("*****************RRT: {0}".format(message))
 
-
+def Draw_All_Paths(path_a, path_b, ax) :
+		for (parent,child) in path_a :
+			if parent != None and child != None :
+				ax.plot([parent[0], child[0]],[parent[1],child[1]], 'r')
+		for (parent,child) in path_b :
+			if parent != None and child != None :
+				ax.plot([parent[0], child[0]],[parent[1],child[1]], 'g')
+		print 'drawing all paths'
 class rrt() :
 	def __init__(self) :
 		rospy.init_node('rrt')
-		baxter_interface.RobotEnable(CHECK_VERSION).enable()
-		loginfo("Initialized rrt Node")
-
-		self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
-		loginfo("Initialized /check collision")
-		rospy.wait_for_service('/check_collision')
-		loginfo("Finished waiting for /check collision")
-
-		self.limb = 'left'
-		self.hand_pose = None
+		
 
 		self.TWOD=1
 		self.CSPACE =2
 
-		self.mode = self.TWOD
-		self.DIMENSIONS = 2
+		self.mode = self.CSPACE
 
-		self.figure = 
-		if self.mode == self.TWOD :
-			qi2 = sample_2d()
-			while Collision_Test2D(qi[0], qi[1]) :
+		self.limb = 'left'
+		self.hand_pose = None
+
+		if self.mode != self.TWOD :
+			baxter_interface.RobotEnable(CHECK_VERSION).enable()
+			loginfo("Initialized rrt Node")
+			self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
+			loginfo("Initialized /check collision")
+			rospy.wait_for_service('/check_collision')
+			loginfo("Finished waiting for /check collision")
+
+		else :
+
+			fig = plt.figure()
+			ax = fig.add_subplot(111)
+			ax.hold(True)
+
+			qi2 = np.array([1,1])#sample_2d()
+			while Collision_Test2D(qi2) :
 				qi2 = sample_2d()
-			qf2 = sample_2d()
-			while Collision_Test2D(qf[0], qf[1]) :
+			qf2 = np.array([19,19])#sample_2d()
+			while Collision_Test2D(qf2) :
 				qf2 = sample_2d()
-			path = self.RRT_Connect_planner(qi2,qf2,5000)
+			path = self.RRT_Connect_Planner(qi2,qf2,5000, ax)
+			pathx = []
+			pathy = []
 			if path :
 				print "2d path found"
+				for i in xrange(0,len(path)) :
+					if path[i] != None and path[i] != []:
+						print path[i]
+						pathx.append(path[i][0])
+						pathy.append(path[i][1])
+				ax = fig.add_subplot(111)
+				ax.hold(True)
+				ax.plot(pathx, pathy , 'b')
+				print "------Simplifying Paths----------"
+				path = self.simplify_path(path, len(path)/2)
+				print path
+				pathx = []
+				pathy = []
 				for point in path :
-					pathx.append(point[0])
-					pathy.append(point[1])
-				plt.plot(pathx, pathy)
-				path = self.simplify_path(path)
-				for point in path :
-					pathx.append(point[0])
-					pathy.append(point[1])
-				plt.plot(pathx, pathy)
+					if point != None and point != []:
+						pathx.append(point[0])
+						pathy.append(point[1])
+				
+				ax.plot(pathx, pathy , 'k')
+
+			plt.show()
+			plt.close()
+			return
 
 
 
@@ -212,7 +246,7 @@ class rrt() :
 			loginfo("INVALID QF TRYING NEW SAMPLE")
 			qf = sample_cspace()
 
-		path = self.RRT_Connect_Planner(qi, qf, 5000)
+		path = self.RRT_Connect_Planner(qi, qf, 5000, None)
 		if path :
 			
 			print "Found Path"
@@ -369,6 +403,9 @@ class rrt() :
 
 	def Check_Point(self, p) :
 
+		if self.mode == self.TWOD :
+			return Collision_Test2D(p)
+
 		try :
 			self.collision_checker = rospy.ServiceProxy('/check_collision', CheckCollision)
 			rospy.wait_for_service('/check_collision')
@@ -422,21 +459,20 @@ class rrt() :
 
 		return path
 
-	def Draw_All_Paths(path_a, path_b) :
-		for (parent,child) in path_a :
-			plt.plot([parent[0], child[0]],[parent[1],child[1]])
-		for (parent,child) in path_b :
-			plt.plot([parent[0], child[0]],[parent[1],child[1]])
+	
 
 	#given an initial and final array of joints, it will find a path to there
 	#avoiding any singularities and obstacles
-	def RRT_Connect_Planner(self, qinit, qgoal,k) :
-
-		Ta = Buffered_KD_Tree(qinit, 20)
+	def RRT_Connect_Planner(self, qinit, qgoal,k, ax) :
+		if self.mode == self.TWOD :
+			temp_dim = 2
+		else :
+			temp_dim = 7
+		Ta = Buffered_KD_Tree(qinit, 20, temp_dim)
 		path_a = []
 		path_a.append((None,qinit))
 
-		Tb = Buffered_KD_Tree(qgoal, 20)
+		Tb = Buffered_KD_Tree(qgoal, 20, temp_dim)
 		path_b = []
 		path_b.append((None,qgoal))
 
@@ -444,7 +480,10 @@ class rrt() :
 
 		for i in xrange(0,k) : #might change to while
 			#print "NEW ITERATION"
-			qrand = sample_cspace()
+			if ax :
+				qrand = sample_2d()
+			else :
+				qrand = sample_cspace()
 
 			#print "QRAND"
 			#print qrand
@@ -486,7 +525,7 @@ class rrt() :
 					print "at %d Distance to Solution"%i
 					print end_distance
 					#check if qnear is close enough to opposite tree
-					if not self.Check_Line(nearest_solution,qnew) :
+					if end_distance < delta and not self.Check_Line(nearest_solution,qnew) :
 						#the trees can reach each other to create the path
 						print path_a
 						print nearest_solution
@@ -495,14 +534,14 @@ class rrt() :
 						heretob = path_from(path_b, qnew)
 						
 						if self.mode == self.TWOD :
-							Draw_All_Paths(path_a,path_b)
+							Draw_All_Paths(path_a,path_b, ax)
 						if atohere == [] or atohere == None:
 							print "atohere"
 							print "How can atohere be empty??"
 							return heretob
-						atohere.append(heretob)
+						#atohere.append(heretob)
 
-						return atohere
+						return atohere+heretob
 					
 				#do opposite as above for this case
 				else :
@@ -513,7 +552,7 @@ class rrt() :
 					end_distance = scipy.spatial.distance.euclidean(qnew, nearest_solution)
 					print "Distance to Solution"
 					print end_distance
-					if not self.Check_Line(nearest_solution,qnew) :
+					if end_distance < delta and not self.Check_Line(nearest_solution,qnew) :
 						print path_a
 						print qnew
 						atohere = path_from(path_a, qnew)
@@ -521,12 +560,12 @@ class rrt() :
 						heretob = path_from(path_b,nearest_solution)
 
 						if self.mode == self.TWOD :
-							Draw_All_Paths(path_a,path_b)
+							Draw_All_Paths(path_a,path_b, ax)
 						if atohere == [] or atohere == None:
 							print "How can atohere be empty??"
 							return heretob
-						atohere.append(heretob)
-						return atohere
+						#atohere.append(heretob)
+						return atohere+heretob
 
 		print "Failed to find path in k steps"
 		return []
