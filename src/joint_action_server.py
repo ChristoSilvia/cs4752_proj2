@@ -65,7 +65,7 @@ class JointActionServer():
 
         self.force_adjustments = False
         self.force_threshold = 0.05
-		self.force_induced_velocity = 0.01
+		self.force_induced_velocity = -0.01
         
         self.move_end_effector_trajectory = createService('move_end_effector_trajectory', JointAction, self.move_end_effector_trajectory, limb_name)
         self.velocity_srv = createService('end_effector_velocity', EndEffectorVelocity, self.get_velocity_response, limb_name)
