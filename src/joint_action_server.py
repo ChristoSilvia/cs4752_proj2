@@ -41,9 +41,9 @@ class JointActionServer():
         self.extra_motion_multiple = 1.1
         
         # free-movement PID parameters
-        self.position_kp = 1.5
-        self.position_ki = 0.72
-        self.position_kd = -0.0054
+        self.kp = 1.5
+        self.ki = 0.72
+        self.kd = -0.0054
 
         self.force_kp = 0.1
         self.force_ki = 0.0
@@ -149,13 +149,13 @@ class JointActionServer():
             # compute tangential position error
             tangential_position_error = position_error - self.surface_normal * np.dot(position_error, self.surface_normal)
             # set position proportional_velocities
-            position_proportional_velocities = self.position_kp * tangential_position_error
+            position_proportional_velocities = self.kp * tangential_position_error
             
             tangential_position_error_integral += tangential_position_error * time_interval
-            position_integral_velocities = self.position_ki * tangential_position_error_integral
+            position_integral_velocities = self.ki * tangential_position_error_integral
 
             tangential_position_error_derivative = (tangential_position_error - last_tangential_position_error)/time_interval
-            position_derivative_velocities = self.position_kd * tangential_position_error_derivative            
+            position_derivative_velocities = self.kd * tangential_position_error_derivative            
 
             last_tangential_position_error = tangential_position_error
 
