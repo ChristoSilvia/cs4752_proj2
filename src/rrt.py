@@ -229,11 +229,15 @@ class rrt() :
 			start_to_goal = goal - start_p
 			start_vec = (start_to_goal)/(np.linalg.norm(start_to_goal))
 			start_time = time.time()
+			max_time = np.linalg.norm(start_to_goal) / joint_velocity
 			
 			while True :
 				newTime = time.time()
 				deltaTime = newTime - start_time
-				ideal_pos = start_vec*deltaTime*joint_velocity*.5 + start_p
+				if deltaTime >= max_time :
+					ideal_pos = goal
+				else :
+					ideal_pos = start_vec*deltaTime*joint_velocity*.5 + start_p
 				current_p_dict = arm.joint_angles()
 				current_p = np.zeros(7)
 				for i in xrange(0,7) :
