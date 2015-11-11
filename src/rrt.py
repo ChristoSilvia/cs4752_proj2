@@ -211,9 +211,9 @@ class rrt() :
 	
 
 	def MoveAlongPathVelocity2(self, path) :
-		joint_velocity = .4
-		min_distance = .30
-		kp = 3.0
+		joint_velocity = .3
+		min_distance = .10
+		kp = 6.0
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
@@ -226,6 +226,7 @@ class rrt() :
 				print "******************************************************"
 				print "COLLISION IN PATH. RRT IS FLAWED"
 				print "======================================================"
+				return
 			start_to_goal = goal - start_p
 			start_vec = (start_to_goal)/(np.linalg.norm(start_to_goal))
 			start_time = time.time()
@@ -235,9 +236,10 @@ class rrt() :
 				newTime = time.time()
 				deltaTime = newTime - start_time
 				if deltaTime >= max_time :
+					deltaTime = max_time
 					ideal_pos = goal
 				else :
-					ideal_pos = start_vec*deltaTime*joint_velocity*.5 + start_p
+					ideal_pos = start_vec*deltaTime*joint_velocity + start_p
 				current_p_dict = arm.joint_angles()
 				current_p = np.zeros(7)
 				for i in xrange(0,7) :
@@ -248,7 +250,7 @@ class rrt() :
 				correction_dire = current_to_ideal
 				if np.linalg.norm(current_to_ideal) != 0:
 					correction_dire = current_to_ideal/np.linalg.norm(current_to_ideal)
-				to_goal_vector =  correction_dire*kp + start_vec # vector .5
+				to_goal_vector =  correction_dire*kp + start_vec*(1-deltaTime/max_time) # vector .5
 				
 				to_goal_norm = to_goal_vector
 				if np.linalg.norm(to_goal_vector) != 0:
