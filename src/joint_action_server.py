@@ -125,18 +125,6 @@ class JointActionServer():
         actual_positions = np.empty((3,n))
         actual_positions[:,0] = self.get_position()
 
-        corrector_velocities = np.empty((3,n))
-        corrector_velocities[:,0] = np.zeros(3)
-        
-        proportional_velocities = np.empty((3,n))
-        proportional_velocities[:,0] = np.zeros(3)
-
-        integral_velocities = np.empty((3,n)) 
-        integral_velocities[:,0] = np.zeros(3)
-
-        derivative_velocities = np.empty((3,n))
-        derivative_velocities[:,0] = np.zeros(3)
-
         last_position_error = np.zeros(3)
         position_error_integral = np.zeros(3)
 
