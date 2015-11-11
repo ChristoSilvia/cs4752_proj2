@@ -2,6 +2,7 @@
 import numpy as np
 #from scipy.spatial import KDTree
 #from scipy.spatial import distance
+import time
 import scipy
 from scipy import spatial
 from scipy.spatial import distance
@@ -185,12 +186,13 @@ class rrt() :
 				
 				print "Found Path"
 				print path
+				self.MoveAlongPathVelocity2(path)
 				print "Simplifying"
 				path = self.simplify_path(path, len(path)/2)
 				print "--------------------------------------"
 				print path
 				print "Found Path Moving Along Path!"
-				self.MoveAlongPathVelocity2(path)
+				
 				print '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
 				print qi
 				print '/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/'
@@ -204,14 +206,14 @@ class rrt() :
 
 		rospy.spin()
 
-	def getJointAngles() :
+	# def getJointAngles() :
 
 	
 
 	def MoveAlongPathVelocity2(self, path) :
 		joint_velocity = .2
-		min_distance = .05
-		kp = .5
+		min_distance = .10
+		kp = 0.0
 		arm = Limb(self.limb)
 		joints = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
 		for goal in path :
@@ -222,10 +224,10 @@ class rrt() :
 				start_p[i] = current_p_dict['left_'+joints[i]]
 			start_to_goal = goal - start_p
 			start_vec = (start_to_goal)/(np.linalg.norm(start_to_goal))
-			start_time = rospy.time.now()
+			start_time = time.time()
 			
 			while True :
-				newTime = rospy.time.now()
+				newTime = time.time()
 				deltaTime = newTime - start_time
 				ideal_pos = start_vec*deltaTime + start_p
 				current_p_dict = arm.joint_angles()
@@ -234,12 +236,13 @@ class rrt() :
 					current_p[i] = current_p_dict['left_'+joints[i]]
 				distance = scipy.spatial.distance.euclidean(goal, current_p)
 				current_to_ideal = ideal_pos - current_p
+				# current_to_ideal *= -1
 				correction_dire = current_to_ideal/np.linalg.norm(current_to_ideal)
 				to_goal_vector =  correction_dire*kp + start_vec # vector .5
 				to_goal_norm = (to_goal_vector/np.linalg.norm(to_goal_vector)) * joint_velocity
 				print 'distance to next pose :'
 				print distance
-				print 'error :'
+				print 'error : %f' % np.linalg.norm(current_to_ideal)
 				print current_to_ideal
 				print 'Moving toward :'
 				print to_goal_norm
