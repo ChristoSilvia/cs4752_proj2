@@ -18,8 +18,8 @@ import tf2_ros
 from tf.transformations import *
 from copy import deepcopy
 
-# zoffset = -.007
-zoffset = 0
+zoffset = -.007
+# zoffset = 0
 
 def loginfo(logstring):
     rospy.loginfo("Controller: {0}".format(logstring))
