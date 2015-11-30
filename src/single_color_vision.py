@@ -4,11 +4,12 @@ import sys
 import rospy
 import cv2
 import time
-from std_msgs.msg import String
-from geometry_msgs.msg import Pose, Quaternion, Point
+from std_msgs.msg import String, Header
+from geometry_msgs.msg import Pose, Quaternion, Point, PoseArray
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
+import math
 
 
 
@@ -21,29 +22,33 @@ class single_color_vision:
 	def __init__(self):
 		print "initializing single color vision object"
 		self.ball_pub = rospy.Publisher("/ball_pose",Pose)
+		self.block_pub = rospy.Publisher("/block_poses", PoseArray)
 		#self.camerainfo_sub = rospy.Subscriber('camera/rgb/camera_info', CameraInfo, self.cameraIntrinsicsCB)
 		#self.camera_matrix = None
 		#cv2.namedWindow("Image window", 1)
 		self.pixel_radius = 10#2.1539 #radius in pixels at 1 meter of orange ball
 		self.lastImageTime = time.time()
-		self.imageWaitTime = .07
-		self.hueVal = 160
+		self.imageWaitTime = .01
+		self.pinkhueVal = 168 #175 for hand, 168 for kinect, may need to continually tune
+		self.bluehueVal = 110
 		#160 #pink
 
 		#topic for the raw image/camera/depth_registered/image_raw
 		#try camera/rgb/image_color/compressed for greater efficiency
 		self.bridge = CvBridge()
 		self.image_sub = rospy.Subscriber("/camera/rgb/image_rect_color",Image,self.imagecallback, queue_size=1)
+		self.depth_image_sub = rospy.Subscriber("/camera/depth_registered/sw_registered/image_rect", Image, self.depthcallback, queue_size=1)
+		self.depth_image = None
+		#self.image_sub = rospy.Subscriber("/cameras/left_hand_camera/image",Image,self.imagecallback, queue_size=1)
 		print "subscribed to /camera/rgb/image_rect_color"
 		print "done initializing"
 
 		cv2.startWindowThread()
-		cv2.namedWindow('HSV_Mask')
+		cv2.namedWindow('HSV_Mask_PINK_BALL')
 
+		cv2.startWindowThread()
+		cv2.namedWindow('HSV_Mask_BLUE_BLOCKS')
 
-		# for the image already converted, does not need cv bridge because image converter already did it
-		#topic /image_converter/output_video
-		#self.image_sub = rospy.Subscriber("/image_converter/output_video",Image,self.imagecallback)
 
 	#def cameraIntrinsicsCB (self, data) :
 	#	self.camera_matrix = data.k
@@ -64,24 +69,43 @@ class single_color_vision:
 		
 		#TODO fix depth image
 		ball_pose = self.findBall(cv_image)
-		try:
-			if ball_pose != None :
-				self.ball_pub.publish(ball_pose)
-		except CvBridgeError, e:
-			print e
 		self.lastImageTime = time.time()
 
+
+	def depthcallback(self,data):
+
+		#if self.lastDepthTime > time.time() - self.depthWaitTime :
+		#	return
+
+		try:
+			self.depth_image = self.bridge.imgmsg_to_cv2(data, "passthrough")#rgba8
+		except CvBridgeError, e:
+			print e
+
+	def vecOut(self, point, width, height) :
+		xFOV = 63.38
+		yFOV = 48.25
+		cx = width /2
+		cy = height /2
+		fx = cx / np.tan((xFOV/2) * np.pi / 180)
+		fy = cy / np.tan((yFOV/2) * np.pi / 180)
+		
+		toball = np.zeros(3)
+		toball[0] = (point[0] - cx) / fx
+		toball[1] = -(point[1] - cy) / fy
+		toball[2] = 1
+		toball = toball / np.linalg.norm(toball) #normaliz
 
 
 	#creates an intrinsic camera matrix and uses the 
 	#position and size of the ball to determine pose
 	#relative to the camera, (using kinect specs)
-	def project(self, p, radius, width, height) :
-		print p
-		print width
-		print height
-		print "radius"
-		print radius
+	def project(self, point, radius, width, height) :
+		#print point
+		#print width
+		#print height
+		#print "radius"
+		#print radius
 
 		xFOV = 63.38
 		yFOV = 48.25
@@ -91,8 +115,8 @@ class single_color_vision:
 		fy = cy / np.tan((yFOV/2) * np.pi / 180)
 		
 		toball = np.zeros(3)
-		toball[0] = (p[0] - cx) / fx
-		toball[1] = -(p[1] - cy) / fy
+		toball[0] = (point[0] - cx) / fx
+		toball[1] = -(point[1] - cy) / fy
 		toball[2] = 1
 		toball = toball / np.linalg.norm(toball) #normalize so we can then multiply by distance
 		distance = self.pixel_radius / radius
@@ -101,76 +125,132 @@ class single_color_vision:
 		pose = Pose()
 		pose.position = Point(toball[0], toball[1], toball[2])
 		pose.orientation = Quaternion(0,0,0,1)
-		#print "FOUND ORANGE BALL!!!!"
-		print toball
+		#print "FOUND Pink BALL!!!!"
+		#print toball
 		return pose
 
-	#find a ball and return its transform relative to the camera
-	#http://www.pyimagesearch.com/2015/09/14/ball-tracking-with-opencv/
-	def findBall(self, rgbimage) :
+	def projectDepth(self, point, distance, width, height) :
 
-		#self.hueVal = (self.hueVal + 2) % 180
+		print distance
+		#print point
+		#print width
+		#print height
+		#print "radius"
+		#print radius
 
-		#print "Looking for Hue: "
-		#print self.hueVal
+		xFOV = 63.38
+		yFOV = 48.25
+		cx = width /2
+		cy = height /2
+		fx = cx / np.tan((xFOV/2) * np.pi / 180)
+		fy = cy / np.tan((yFOV/2) * np.pi / 180)
+		
+		toball = np.zeros(3)
+		toball[0] = (point[0] - cx) / fx
+		toball[1] = -(point[1] - cy) / fy
+		toball[2] = 1
+		toball = toball / np.linalg.norm(toball) #normalize so we can then multiply by distance
+		#distance = self.pixel_radius / radius
+		toball = toball * distance
 
-		initialtime = time.time()
-		#should be HSV values.
+		pose = Pose()
+		pose.position = Point(toball[0], toball[1], toball[2])
+		pose.orientation = Quaternion(0,0,0,1)
+		print pose.position
+		return pose
+
+	def findBlobsofHue(self, hueVal, lookfor, rgbimage) :
+
 		hue_range = 5
-		orangeLower = (self.hueVal-hue_range, 85, 6)
-		orangeUpper =(self.hueVal+hue_range, 255, 255)
-
-		# resize the frame, blur it, and convert it to the HSV
-		# color space
-		#frame = imutils.resize(frame, width=600)
+		colorLower = (hueVal-hue_range, 100, 100)
+		colorUpper =(hueVal+hue_range, 255, 255)
 		blurred = cv2.GaussianBlur(rgbimage, (11, 11), 0)
 		hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
-
-		# construct a mask for the color "green", then perform
-		# a series of dilations and erosions to remove any small
-		# blobs left in the mask
-		mask = cv2.inRange(hsv, orangeLower, orangeUpper)
+		mask = cv2.inRange(hsv, colorLower, colorUpper)
 		mask = cv2.erode(mask, None, iterations=2)
 		mask = cv2.dilate(mask, None, iterations=2)
 
 		res = cv2.bitwise_and(rgbimage,rgbimage,mask = mask)
 
-		
-		#mask = cv2.Canny(mask, 100, 100)
-		
-
-		# find contours in the mask and initialize the current
-		# (x, y) center of the ball
+		blobsFound = []
 		cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[-2]
-		center = None
-	 
-		# only proceed if at least one contour was found
-		if len(cnts) > 0:
 
-			#print "Len Cnts is greater than 0!"
-			# find the largest contour in the mask, then use
-			# it to compute the minimum enclosing circle and
-			# centroid
+		hsvstring = 'HSV_Mask_PINK_BALL'
+		if hueVal > 100 and hueVal < 130 :
+			hsvstring = 'HSV_Mask_BLUE_BLOCKS'
+
+
+		while lookfor > 0 and len(cnts) > 0:
 			c = max(cnts, key=cv2.contourArea)
+			#try :
+			#print type(cnts[0])
+			cnts.remove(c)
+			#except :
+				#pass
+			
 			((x, y), radius) = cv2.minEnclosingCircle(c)
-			M = cv2.moments(c)
-			center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-			#print "Screen Coords of Circle:"
-			#print center
-	 
-			# only proceed if the radius meets a minimum size
-			if radius > 10:
-				#publish the location of the ball
-				print "ball vision algorithm took"
-				cv2.circle(res, (int(x), int(y)), int(radius), (0, 255, 255), 2)
-				print time.time() - initialtime
-				#print "imshowing res"
-				cv2.imshow('HSV_Mask',res)
-				#cv2.waitKey()
-				return self.project((x,y), radius, rgbimage.shape[1], rgbimage.shape[0])
-		#print "ball vision algorithm took to FAIL"	
-		#print time.time() - initialtime
-		return None
+	 		lookfor = lookfor - 1
+			
+			if radius > 5:# only proceed if the radius meets a minimum size
+				blobsFound.append([x,y,radius])
+				cv2.circle(res, (int(x), int(y)), int(radius), (0,255,255), 2)
+
+		cv2.imshow(hsvstring,res)
+		return blobsFound
+
+	#find a ball and return its transform relative to the camera
+	#http://www.pyimagesearch.com/2015/09/14/ball-tracking-with-opencv/
+	def findBall(self, rgbimage) :
+		
+		initialtime = time.time()
+	
+		# blockList = self.findBlobsofHue(self.bluehueVal, 6, rgbimage)
+		# block_poses_list = []
+		# for block in blockList :
+		# 	if self.depth_image != None :
+		# 		distance = self.depth_image[int(block[0]), int(block[1])]
+		# 		block_pose = self.projectDepth((int(block[0]), int(block[1])), distance, rgbimage.shape[1], rgbimage.shape[0])
+		# 	block_pose = self.project((int(block[0]), int(block[1])), int(block[2]), rgbimage.shape[1], rgbimage.shape[0])
+		# 	block_poses_list.append(block_pose)
+		
+		# try:
+		# 	if block_poses_list != [] :
+		# 		block_poses = PoseArray()
+		# 		block_poses.header = Header()
+		# 		block_poses.poses = block_poses_list
+		# 		self.block_pub.publish(block_poses)
+		# except CvBridgeError, e:
+		# 	print e
+
+		#used for tuning
+		# pinkmax = 169
+		# pinkmin = 168
+		# self.pinkhueVal = (self.pinkhueVal + 1) % pinkmax
+		# if self.pinkhueVal < pinkmin :
+		# 	self.pinkhueVal = pinkmin
+
+		# print "Pink Hue Val"
+		# print self.pinkhueVal
+
+
+		pink_balls = self.findBlobsofHue(self.pinkhueVal, 1, rgbimage)
+		if pink_balls != [] :
+			bi = pink_balls[0]
+			if self.depth_image != None :
+				distance = self.depth_image[int(bi[1]), int(bi[0])]
+				if not math.isnan(distance) :
+					ball_pose = self.projectDepth((int(bi[0]), int(bi[1])), distance, rgbimage.shape[1], rgbimage.shape[0])
+	 			else :
+	 				ball_pose = self.project((int(bi[0]), int(bi[1])), int(bi[2]), rgbimage.shape[1], rgbimage.shape[0])
+	 		else :
+	 			ball_pose = self.project((int(bi[0]), int(bi[1])), int(bi[2]), rgbimage.shape[1], rgbimage.shape[0])
+			try:
+				if ball_pose != None :
+					self.ball_pub.publish(ball_pose)
+			except CvBridgeError, e:
+				print e
+		
+		
 
 
 def main(args):
