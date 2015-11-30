@@ -37,7 +37,7 @@ class single_color_vision:
 		#try camera/rgb/image_color/compressed for greater efficiency
 		self.bridge = CvBridge()
 		self.image_sub = rospy.Subscriber("/camera/rgb/image_rect_color",Image,self.imagecallback, queue_size=1)
-		self.depth_image_sub = rospy.Subscriber("/camera/depth_registered/sw_registered/image_rect", Image, self.depthcallback, queue_size=1)
+		self.depth_image_sub = rospy.Subscriber("/camera/depth_registered/hw_registered/image_rect", Image, self.depthcallback, queue_size=1)
 		self.depth_image = None
 		#self.image_sub = rospy.Subscriber("/cameras/left_hand_camera/image",Image,self.imagecallback, queue_size=1)
 		print "subscribed to /camera/rgb/image_rect_color"
@@ -204,23 +204,27 @@ class single_color_vision:
 		
 		initialtime = time.time()
 	
-		# blockList = self.findBlobsofHue(self.bluehueVal, 6, rgbimage)
-		# block_poses_list = []
-		# for block in blockList :
-		# 	if self.depth_image != None :
-		# 		distance = self.depth_image[int(block[0]), int(block[1])]
-		# 		block_pose = self.projectDepth((int(block[0]), int(block[1])), distance, rgbimage.shape[1], rgbimage.shape[0])
-		# 	block_pose = self.project((int(block[0]), int(block[1])), int(block[2]), rgbimage.shape[1], rgbimage.shape[0])
-		# 	block_poses_list.append(block_pose)
+		blockList = self.findBlobsofHue(self.bluehueVal, 6, rgbimage)
+		block_poses_list = []
+		for block in blockList :
+			if self.depth_image != None :
+				distance = self.depth_image[int(block[0]), int(block[1])]
+				if not math.isnan(distance) :
+					block_pose = self.projectDepth((int(block[0]), int(block[1])), distance, rgbimage.shape[1], rgbimage.shape[0])
+				else :
+					block_pose = self.project((int(block[0]), int(block[1])), int(block[2]), rgbimage.shape[1], rgbimage.shape[0])
+			else :
+				block_pose = self.project((int(block[0]), int(block[1])), int(block[2]), rgbimage.shape[1], rgbimage.shape[0])
+			block_poses_list.append(block_pose)
 		
-		# try:
-		# 	if block_poses_list != [] :
-		# 		block_poses = PoseArray()
-		# 		block_poses.header = Header()
-		# 		block_poses.poses = block_poses_list
-		# 		self.block_pub.publish(block_poses)
-		# except CvBridgeError, e:
-		# 	print e
+		try:
+			if block_poses_list != [] :
+				block_poses = PoseArray()
+				block_poses.header = Header()
+				block_poses.poses = block_poses_list
+				self.block_pub.publish(block_poses)
+		except CvBridgeError, e:
+			print e
 
 		#used for tuning
 		# pinkmax = 169
