@@ -37,7 +37,7 @@ class single_color_vision:
 		#try camera/rgb/image_color/compressed for greater efficiency
 		self.bridge = CvBridge()
 		self.image_sub = rospy.Subscriber("/camera/rgb/image_rect_color",Image,self.imagecallback, queue_size=1)
-		self.depth_image_sub = rospy.Subscriber("/camera/depth_registered/hw_registered/image_rect", Image, self.depthcallback, queue_size=1)
+		self.depth_image_sub = rospy.Subscriber("/camera/depth_registered/sw_registered/image_rect", Image, self.depthcallback, queue_size=10)
 		self.depth_image = None
 		#self.image_sub = rospy.Subscriber("/cameras/left_hand_camera/image",Image,self.imagecallback, queue_size=1)
 		print "subscribed to /camera/rgb/image_rect_color"
@@ -76,9 +76,11 @@ class single_color_vision:
 
 		#if self.lastDepthTime > time.time() - self.depthWaitTime :
 		#	return
-
+		#print "depth callback"
 		try:
+
 			self.depth_image = self.bridge.imgmsg_to_cv2(data, "passthrough")#rgba8
+			#print "Updated depth image"
 		except CvBridgeError, e:
 			print e
 
@@ -106,6 +108,7 @@ class single_color_vision:
 		#print height
 		#print "radius"
 		#print radius
+		#print "Not using depth"
 
 		xFOV = 63.38
 		yFOV = 48.25
@@ -131,7 +134,7 @@ class single_color_vision:
 
 	def projectDepth(self, point, distance, width, height) :
 
-		print distance
+		#print distance
 		#print point
 		#print width
 		#print height
@@ -156,7 +159,7 @@ class single_color_vision:
 		pose = Pose()
 		pose.position = Point(toball[0], toball[1], toball[2])
 		pose.orientation = Quaternion(0,0,0,1)
-		print pose.position
+		#print pose.position
 		return pose
 
 	def findBlobsofHue(self, hueVal, lookfor, rgbimage) :
@@ -204,7 +207,7 @@ class single_color_vision:
 		
 		initialtime = time.time()
 	
-		blockList = self.findBlobsofHue(self.bluehueVal, 6, rgbimage)
+		"""blockList = self.findBlobsofHue(self.bluehueVal, 6, rgbimage)
 		block_poses_list = []
 		for block in blockList :
 			if self.depth_image != None :
@@ -225,6 +228,7 @@ class single_color_vision:
 				self.block_pub.publish(block_poses)
 		except CvBridgeError, e:
 			print e
+		"""
 
 		#used for tuning
 		# pinkmax = 169
