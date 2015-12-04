@@ -21,7 +21,7 @@ from copy import deepcopy
 from datetime import datetime
 
 class JointActionServer():
-    def __init__(self, limb_name='left'):
+    def __init__(self, limb_name='right'):
         rospy.init_node('joint_action_server')
         baxter_interface.RobotEnable(CHECK_VERSION).enable()
 
@@ -37,7 +37,7 @@ class JointActionServer():
         self.secondary_objective = True
 
         # secondary objective parameters
-        self.extra_motion_maximum = 0.00001
+        self.extra_motion_maximum = 0.5
         self.extra_motion_multiple = 1.1
         
         # free-movement PID parameters
@@ -431,6 +431,6 @@ def maximize_cosine_constrained(a,b,c,n2):
 
 if __name__ == '__main__':
     try: 
-        JointActionServer(limb_name='left')
+        JointActionServer(limb_name='right')
     except rospy.ROSInterruptException:
         pass
